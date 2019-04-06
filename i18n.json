@@ -1,0 +1,36 @@
+{
+	"thankyou": {
+		"en": [
+			"Thank you!",
+			"You're kind, thank you!",
+			"Thank you so much"
+		],
+		"fr": [
+			"Merci!",
+			"Merci beaucoup",
+			"Tu es tellement gentil, merci!"
+		]
+	},
+	"feelingThirsty": {
+		"en": [
+			"I'm rather thirsty",
+			"I could do with some water",
+			"I wouldn't say no to some water"
+		],
+		"fr": [
+			"J'ai soif",
+			"Je ne dirais pas non à un peu d'eau",
+			"Je serais heureuse d'avoir un peu d'eau"
+		]
+	},
+	"feelingDrawned": {
+		"en": [
+			"Too much water! I'm drawning!",
+			"Do something please, I'm drawning!"
+		],
+		"fr": [
+			"Trop d'eau, je me noie!",
+			"Fais quelque chose s'il te plait, je me noie!"
+		]
+	}
+}
