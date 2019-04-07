@@ -20,6 +20,9 @@ class SnipsMyFlower:
 		self._flower = Flower()
 		self.runMqtt()
 
+		if not self._flower.loadFlower():
+			pass
+
 
 	def onMessage(self, hermes, message):
 		topic = message.intent.intent_name
@@ -38,6 +41,14 @@ class SnipsMyFlower:
 		hermes.publish_continue_session(sessionId,
 										text,
 										custom_data=json.dumps(customData))
+
+
+	def askUser(self, hermes, text, filter):
+		hermes.publish_start_session_action(None, text, filter, True, False, None)
+
+
+	def say(self, hermes, text):
+		hermes.publish_start_session_notification("plant", text, None)
 
 
 	def runMqtt(self):

@@ -1,0 +1,11 @@
+{
+	"cactus": {
+		"soil": 0.42,
+		"temperature_min": 10,
+		"temperature_max": 80,
+		"humidity_max": 75,
+		"humidity_min": 10,
+		"uv": 565,
+		"luminosity": 1000
+	}
+}
