@@ -2,16 +2,16 @@
 
 VENV=venv
 
-if [[ ! -e config.ini ]]; then
+if [ ! -e config.ini ]; then
     cp config.default config.ini
     chmod a+w config.ini
 fi
 
-if [[ ! -d "$VENV" ]]
+if [ ! -d "$VENV" ]
 then
     PYTHON=`which python3`
 
-    if [[ ! -f $PYTHON ]]
+    if [ ! -f $PYTHON ]
     then
         echo "Please install Python 3"
         exit
