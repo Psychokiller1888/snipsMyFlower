@@ -71,7 +71,7 @@ class Flower:
 
 	def loadFlower(self):
 		if os.path.isfile('me.json'):
-			with open('me.json') as f:
+			with open('me.json', 'w+') as f:
 				self._me = json.loads(f)
 			return True
 		else:
