@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import json
 
 from Flower import Flower
 from I18n import I18n
@@ -32,8 +33,11 @@ class SnipsMyFlower:
 		hermes.publish_end_session(sessionId, text)
 
 
-	def continueSession(self, hermes, sessionId, text, siteId, filter):
-		pass
+	@staticmethod
+	def continueSession(hermes, sessionId, text, customData, filter):
+		hermes.publish_continue_session(sessionId,
+										text,
+										custom_data=json.dumps(customData))
 
 
 	def runMqtt(self):
