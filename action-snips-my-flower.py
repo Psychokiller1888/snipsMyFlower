@@ -31,6 +31,10 @@ class SnipsMyFlower:
 			self.endSession(hermes, message.session_id, self._i18n.getRandomText('thankyou'))
 
 
+	def onStop(self):
+		self._flower.onStop()
+
+
 	@staticmethod
 	def endSession(hermes, sessionId, text):
 		hermes.publish_end_session(sessionId, text)
@@ -63,4 +67,11 @@ class SnipsMyFlower:
 
 
 if __name__ == "__main__":
-	SnipsMyFlower()
+	instance = None
+	try:
+		instance = SnipsMyFlower()
+	except KeyboardInterrupt:
+		pass
+	finally:
+		if instance is not None:
+			instance.onStop()

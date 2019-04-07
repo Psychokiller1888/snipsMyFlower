@@ -2,3 +2,4 @@
 hermes-python>=0.3.3
 pytoml
 RPi.GPIO
+smbus

@@ -14,8 +14,9 @@ class I18n:
 
 	def _loadI18n(self):
 		try:
-			with open('i18n.json') as f:
-				self._i18n = json.loads(f)
+			with open('i18n.json', 'r') as f:
+				data = f.read()
+				self._i18n = json.loads(data)
 		except:
 			print('Error loading language file')
 
