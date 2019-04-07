@@ -50,5 +50,6 @@ class SnipsMyFlower:
 		with Hermes(mqtt) as hermes:
 			hermes.subscribe_intents(self.onMessage).start()
 
+
 if __name__ == "__main__":
 	SnipsMyFlower()
