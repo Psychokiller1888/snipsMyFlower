@@ -3,9 +3,13 @@
 
 from DHT import DHT
 import json
+import logging
 import os
+import paho.mqtt.client as mqtt
+import pytoml
 import RPi.GPIO as gpio
 import sqlite3
+import sys
 import threading
 import time
 import Veml6070
@@ -35,7 +39,11 @@ class Flower:
 		water INTEGER
 	);"""
 
+	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
+	_MQTT_ANSWER_TELEMETRY = 'snipsmyflower/flowers/telemetryData'
+
 	def __init__(self):
+		self._logger = logging.getLogger('SnipsMyFlower')
 		gpio.setmode(gpio.BOARD)
 		gpio.setwarnings(False)
 		gpio.setup(self._PUMP_PIN, gpio.OUT)
@@ -50,7 +58,27 @@ class Flower:
 		con = self._initDB()
 		if con is None:
 			print('Error initializing database')
-			exit()
+			sys.exit()
+
+		self._mqtt = None
+		self._snipsConf = self._loadSnipsConfiguration()
+		if self._snipsConf is None:
+			self._logger.error('snips-audio-server not installed, stopping')
+			sys.exit()
+
+		if 'snips-common' not in self._snipsConf or 'mqtt' not in self._snipsConf['snips-common']:
+			self._logger.error("Snips satellite is not configured. Please edit /etc/snips.toml and configure ['snips-common']['mqtt'] and try to start me again")
+			sys.exit()
+		else:
+			self._mqtt = self._connectMqtt()
+			if not self._mqtt:
+				self._logger.error("Couldn't connect to mqtt broker")
+				sys.exit()
+
+		self._siteId = self._getSiteId()
+		if not self._siteId:
+			self._logger.error("Couldnt' get my site id, please edit /etc/snips.toml and configure ['snips-audio-server']['bind']")
+			sys.exit()
 
 		self._plantsData = self._loadPlantsData()
 		self._me = None
@@ -74,6 +102,37 @@ class Flower:
 		self._waterMonitoring.start()
 
 
+	def _connectMqtt(self):
+		try:
+			mqttClient = mqtt.Client()
+			mqttClient.on_connect = self._onConnect
+			mqttClient.on_message = self._onMessage
+			mqttClient.connect(self._snipsConf['snips-common']['mqtt'].split(':')[0], int(self._snipsConf['snips-common']['mqtt'].split(':')[1]))
+			mqttClient.loop_start()
+			return mqttClient
+		except:
+			return False
+
+
+	def _loadSnipsConfiguration(self):
+		self._logger.info('Loading configurations')
+
+		if os.path.isfile('/etc/snips.toml'):
+			with open('/etc/snips.toml') as confFile:
+				return pytoml.load(confFile)
+		else:
+			return None
+
+
+	def _getSiteId(self):
+		if 'bind' in self._snipsConf['snips-audio-server']:
+			if ':' in self._snipsConf['snips-audio-server']['bind']:
+				return self._snipsConf['snips-audio-server']['bind'].split(':')[0]
+			elif '@' in self._snipsConf['snips-audio-server']['bind']:
+				return self._snipsConf['snips-audio-server']['bind'].split('@')[0]
+		return False
+
+
 	@staticmethod
 	def _loadPlantsData():
 		with open('plantsData.json', 'r') as f:
@@ -81,7 +140,7 @@ class Flower:
 			return json.loads(data)
 
 
-	def loadFlower(self):
+	def _loadFlower(self):
 		if os.path.isfile('me.json'):
 			with open('me.json', 'w+') as f:
 				data = f.read()
@@ -109,6 +168,29 @@ class Flower:
 			self._waterMonitoring.join(timeout=2)
 
 		gpio.cleanup()
+
+
+	def _onConnect(self, client, userdata, flags, rc):
+		self._mqtt.subscribe([
+			(self._MQTT_GET_TELEMETRY, 0)
+		])
+
+
+	def _onMessage(self, client, userdata, message):
+		payload = None
+		if hasattr(message, 'payload') and message.payload != '':
+			payload = json.loads(message.payload)
+
+		if 'siteId' not in payload or payload['siteId'] != self._siteId:
+			return
+
+		topic = message.topic
+
+		if topic == self._MQTT_GET_TELEMETRY:
+			data = self._getTelemetryData()
+			payload = {'siteId': self._siteId, 'data': data}
+			self._mqtt.publish(topic=self._MQTT_ANSWER_TELEMETRY, payload=json.dumps(payload))
+			return
 
 
 	def doWater(self):
