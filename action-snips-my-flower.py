@@ -12,7 +12,7 @@ class SnipsMyFlower:
 
 	_INTENT_WATER = 'Psychokiller1888:water'
 	_INTENT_TELEMETRY = 'Psychokiller1888:telemetry'
-	_INTENT_ANSWER_FLOWER = 'Psychokiller1888:flower'
+	_INTENT_ANSWER_FLOWER = 'Psychokiller1888:flowerNames'
 
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
 	_MQTT_ANSWER_TELEMETRY = 'snipsmyflower/flowers/telemetryData'
