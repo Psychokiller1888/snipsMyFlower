@@ -3,6 +3,7 @@
 import json
 
 from I18n import I18n
+import paho.mqtt.client as mqtt
 import pytoml
 import sys
 
@@ -128,18 +129,19 @@ class SnipsMyFlower:
 	def _connectMqtt(self):
 		try:
 			toml = pytoml.loads('/etc/snips.toml')
-			mqtt = toml['snips-common']['mqtt']
+			mqttHost = toml['snips-common']['mqtt']
 		except:
-			mqtt = 'localhost:1883'
+			mqttHost = 'localhost:1883'
 
 		try:
 			mqttClient = mqtt.Client()
 			mqttClient.on_connect = self._onConnect
 			mqttClient.on_message = self._onMessage
-			mqttClient.connect(mqtt.split(':')[0], int(mqtt.split(':')[1]))
+			mqttClient.connect(mqttHost.split(':')[0], int(mqttHost.split(':')[1]))
 			mqttClient.loop_start()
 			return mqttClient
-		except:
+		except Exception as e:
+			print(e)
 			return False
 
 
