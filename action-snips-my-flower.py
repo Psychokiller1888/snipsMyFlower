@@ -6,17 +6,19 @@ from I18n import I18n
 import paho.mqtt.client as mqtt
 import pytoml
 import sys
+import time
 
 
 class SnipsMyFlower:
 	""" Snips app for My Snips Flower by Psycho """
 
-	_INTENT_WATER = 'Psychokiller1888:water'
-	_INTENT_TELEMETRY = 'Psychokiller1888:telemetry'
-	_INTENT_ANSWER_FLOWER = 'Psychokiller1888:flowerNames'
+	_INTENT_WATER = 'hermes/intent/Psychokiller1888:water'
+	_INTENT_TELEMETRY = 'hermes/intent/Psychokiller1888:telemetry'
+	_INTENT_ANSWER_FLOWER = 'hermes/intent/Psychokiller1888:flowerNames'
 
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
 	_MQTT_ANSWER_TELEMETRY = 'snipsmyflower/flowers/telemetryData'
+	_MQTT_DO_WATER = 'snipsmyflower/flowers/doWater'
 
 	def __init__(self):
 		self._i18n = I18n()
@@ -24,13 +26,15 @@ class SnipsMyFlower:
 		if not self._mqtt:
 			print('Cannot connect mqtt')
 			sys.exit()
+
 		self._telemetryData = dict()
 
 
 	def _onMessage(self, client, userdata, message):
-		payload = dict()
-		if hasattr(message, 'payload') and message.payload != '':
-			payload = json.loads(message.payload)
+		try:
+			payload = json.loads(message.payload.decode('utf-8'))
+		except:
+			payload = dict()
 
 		topic = message.topic
 		siteId = 'default'
@@ -57,6 +61,12 @@ class SnipsMyFlower:
 		elif topic == self._MQTT_ANSWER_TELEMETRY:
 			self._telemetryData[siteId] = payload['data']
 			return
+
+		elif topic == self._INTENT_WATER:
+			if siteId == 'default':
+				return
+			self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('thankyou'))
+			self._mqtt.publish(topic=self._MQTT_DO_WATER, payload=json.dumps({'siteId': siteId}))
 
 
 	def onStop(self):
@@ -147,14 +157,20 @@ class SnipsMyFlower:
 
 	def _onConnect(self, client, userdata, flags, rc):
 		self._mqtt.subscribe([
-			(self._MQTT_ANSWER_TELEMETRY, 0)
+			(self._MQTT_ANSWER_TELEMETRY, 0),
+			(self._INTENT_WATER, 0),
+			(self._INTENT_TELEMETRY, 0),
+			(self._INTENT_ANSWER_FLOWER, 0)
 		])
 
 
 if __name__ == "__main__":
 	instance = None
+	running = True
 	try:
 		instance = SnipsMyFlower()
+		while running:
+			time.sleep(0.1)
 	except KeyboardInterrupt:
 		pass
 	finally:

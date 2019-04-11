@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from DHT import DHT
+from Chirp import Chirp
 import json
 import logging
 import os
@@ -12,7 +12,6 @@ import sqlite3
 import sys
 import threading
 import time
-import Veml6070
 
 class Flower:
 
@@ -26,19 +25,16 @@ class Flower:
 	_PUMP_PIN = 37
 	_LED_PIN = 31
 
-	_TEMPHUMI_PIN = 18
-
 	_TELEMETRY_TABLE = """ CREATE TABLE IF NOT EXISTS telemetry (
 		id integer PRIMARY KEY,
 		timestamp integer NOT NULL,
 		temperature REAL,
 		luminosity REAL,
-		humidity REAL,
 		moisture REAL,
-		uv REAL,
 		water INTEGER
 	);"""
 
+	_MQTT_DO_WATER = 'snipsmyflower/flowers/doWater'
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
 	_MQTT_ANSWER_TELEMETRY = 'snipsmyflower/flowers/telemetryData'
 
@@ -82,8 +78,14 @@ class Flower:
 
 		self._plantsData = self._loadPlantsData()
 		self._me = None
-		self._sensor = DHT(str(11), self._TEMPHUMI_PIN)
-		self._veml6070 = Veml6070.Veml6070()
+		self._moistureSensor = Chirp(address=0x20,
+                  read_moist=True,
+                  read_temp=True,
+                  read_light=True,
+                  min_moist=214,
+                  max_moist=625,
+                  temp_scale='celsius',
+                  temp_offset=-5.5)
 
 		self._watering = threading.Timer(interval=5.0, function=self._pump, args=[False])
 
@@ -95,11 +97,6 @@ class Flower:
 		self._monitoring = threading.Timer(interval=60, function=self._onMinute)
 		self._monitoring.setDaemon(True)
 		self._monitoring.start()
-
-		self._waterMonitoringFlag = threading.Event()
-		self._waterMonitoring = threading.Thread(target=self._waterLevelMonitoring)
-		self._waterMonitoring.setDaemon(True)
-		self._waterMonitoring.start()
 
 
 	def _connectMqtt(self):
@@ -163,10 +160,6 @@ class Flower:
 			self._telemetryFlag.clear()
 			self._telemetry.join(timeout=2)
 
-		if self._waterMonitoring.isAlive():
-			self._waterMonitoringFlag.clear()
-			self._waterMonitoring.join(timeout=2)
-
 		gpio.cleanup()
 
 
@@ -191,6 +184,9 @@ class Flower:
 			payload = {'siteId': self._siteId, 'data': data}
 			self._mqtt.publish(topic=self._MQTT_ANSWER_TELEMETRY, payload=json.dumps(payload))
 			return
+
+		elif topic == self._MQTT_DO_WATER:
+			self.doWater()
 
 
 	def doWater(self):
@@ -219,18 +215,40 @@ class Flower:
 	def _queryTelemetryData(self):
 		self._telemetryFlag.set()
 		while self._telemetryFlag.isSet():
-			humi, temp = self._sensor.read()
-			print('Temperature: {:.1f}°C, humidity: {}%'.format(temp, humi))
+			data = list()
+			try: # Chirp sometimes crashes, in which case we simply recall the telemetry query
+				self._moistureSensor.wake_up()
+				self._moistureSensor.trigger()
+				time.sleep(1)
+				moisture = self._moistureSensor.moist_percent
+				light = self._moistureSensor.light
+				temperature = self._moistureSensor.temp
+				self._moistureSensor.sleep()
+				print('Moisture: {}% temperature: {:.1f}°C light: {} lux'.format(moisture, temperature, light))
+				if moisture > 100 or moisture < 0 or temperature > 100:
+					raise Exception('Impossible chirp sensor values')
+				else:
+					data.extend((temperature, light, moisture))
+			except Exception as e:
+				self._logger.error(e)
+				self._telemetryFlag.clear()
+				self._queryTelemetryData()
 
-			for i in [Veml6070.INTEGRATIONTIME_1_2T,
-					  Veml6070.INTEGRATIONTIME_1T,
-					  Veml6070.INTEGRATIONTIME_2T,
-					  Veml6070.INTEGRATIONTIME_4T]:
-				self._veml6070.set_integration_time(i)
-				uv_raw = self._veml6070.get_uva_light_intensity_raw()
-				uv = self._veml6070.get_uva_light_intensity()
-				print("Integration Time setting %d: %f W/(m*m) from raw value %d" % (i, uv, uv_raw))
-
+			gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
+			if gpio.input(self._WATER_FULL_PIN):
+				data.append(100)
+			elif gpio.input(self._WATER_75_PIN):
+				data.append(75)
+			elif gpio.input(self._WATER_50_PIN):
+				data.append(50)
+			elif gpio.input(self._WATER_25_PIN):
+				data.append(25)
+			elif gpio.input(self._WATER_EMPTY_PIN):
+				data.append(0)
+			else:
+				data.append(-1)
+			gpio.output(self._WATER_SENSOR_PIN, gpio.LOW)
+			self._storeTelemetryData(data)
 			time.sleep(5)
 
 
@@ -241,7 +259,7 @@ class Flower:
 				return False
 			data.insert(0, int(round(time.time())))
 			cursor = con.cursor()
-			sql = 'INSERT INTO telemetry (timestamp, temperature, luminosity, humidity, moisture, uv, water) VALUES (?, ?, ?, ?, ?, ?, ?)'
+			sql = 'INSERT INTO telemetry (timestamp, temperature, luminosity, moisture, water) VALUES (?, ?, ?, ?, ?)'
 			cursor.execute(sql, data)
 		except sqlite3.Error as e:
 			print(e)
@@ -260,27 +278,6 @@ class Flower:
 		except sqlite3.Error as e:
 			print(e)
 			return None
-
-
-	def _waterLevelMonitoring(self):
-		self._waterMonitoringFlag.set()
-		while self._waterMonitoringFlag.isSet():
-			gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
-			if gpio.input(self._WATER_FULL_PIN):
-				print('full')
-			elif gpio.input(self._WATER_75_PIN):
-				print('75')
-			elif gpio.input(self._WATER_50_PIN):
-				print('50')
-			elif gpio.input(self._WATER_25_PIN):
-				print('25')
-			elif gpio.input(self._WATER_EMPTY_PIN):
-				print('empty')
-			else:
-				print('dry')
-
-			gpio.output(self._WATER_SENSOR_PIN, gpio.LOW)
-			time.sleep(5)
 
 
 	def _initDB(self):
