@@ -124,7 +124,8 @@ class SnipsMyFlower:
 		self._mqtt.publish('hermes/dialogueManager/startSession', json.dumps(jsonDict))
 
 
-	def say(self, hermes, text):
+	@staticmethod
+	def say(hermes, text):
 		hermes.publish_start_session_notification("plant", text, None)
 
 
