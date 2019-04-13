@@ -97,6 +97,9 @@ class SnipsMyFlower:
 						print(e)
 						self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('error'))
 						return
+
+
+
 					return
 
 		elif topic == self._MQTT_TELEMETRY_REPORT or len(payload.keys()) <= 0:

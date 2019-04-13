@@ -13,6 +13,10 @@ class I18n:
 
 
 	def _loadI18n(self):
+		"""
+		Loads the i18n json file, containing all the strings used by this skill
+		:return:
+		"""
 		try:
 			with open('i18n.json', 'r') as f:
 				data = f.read()
