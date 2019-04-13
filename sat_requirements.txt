@@ -2,3 +2,5 @@ RPi.GPIO
 smbus
 paho.mqtt
 pytoml
+Adafruit-Blinka
+adafruit-circuitpython-dotstar

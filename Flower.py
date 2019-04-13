@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 from Chirp import Chirp
@@ -23,7 +23,6 @@ class Flower:
 	_WATER_FULL_PIN = 36
 
 	_PUMP_PIN = 37
-	_LED_PIN = 31
 
 	_TELEMETRY_TABLE = """ CREATE TABLE IF NOT EXISTS telemetry (
 		id integer PRIMARY KEY,
@@ -43,7 +42,6 @@ class Flower:
 		gpio.setmode(gpio.BOARD)
 		gpio.setwarnings(False)
 		gpio.setup(self._PUMP_PIN, gpio.OUT)
-		gpio.setup(self._LED_PIN, gpio.OUT)
 		gpio.setup(self._WATER_SENSOR_PIN, gpio.OUT)
 		gpio.setup(self._WATER_EMPTY_PIN, gpio.IN, gpio.PUD_DOWN)
 		gpio.setup(self._WATER_25_PIN, gpio.IN, gpio.PUD_DOWN)
