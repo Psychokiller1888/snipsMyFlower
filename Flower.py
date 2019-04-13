@@ -8,7 +8,6 @@ import os
 import paho.mqtt.client as mqtt
 import pytoml
 import RPi.GPIO as gpio
-import sqlite3
 import sys
 import threading
 import time
@@ -24,20 +23,15 @@ class Flower:
 
 	_PUMP_PIN = 37
 
-	_TELEMETRY_TABLE = """ CREATE TABLE IF NOT EXISTS telemetry (
-		id integer PRIMARY KEY,
-		timestamp integer NOT NULL,
-		temperature REAL,
-		luminosity REAL,
-		moisture REAL,
-		water INTEGER
-	);"""
-
 	_MQTT_DO_WATER = 'snipsmyflower/flowers/doWater'
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
-	_MQTT_ANSWER_TELEMETRY = 'snipsmyflower/flowers/telemetryData'
+	_MQTT_TELEMETRY_REPORT = 'snipsmyflower/flowers/telemetryData'
 
 	def __init__(self):
+		"""
+		Initiliazes the flower instance
+		Tries to connect to master mqtt, gets its site id, loads plants data and itself and starts the 5 minute monitoring thread
+		"""
 		self._logger = logging.getLogger('SnipsMyFlower')
 		gpio.setmode(gpio.BOARD)
 		gpio.setwarnings(False)
@@ -48,11 +42,6 @@ class Flower:
 		gpio.setup(self._WATER_50_PIN, gpio.IN, gpio.PUD_DOWN)
 		gpio.setup(self._WATER_75_PIN, gpio.IN, gpio.PUD_DOWN)
 		gpio.setup(self._WATER_FULL_PIN, gpio.IN, gpio.PUD_DOWN)
-
-		con = self._initDB()
-		if con is None:
-			print('Error initializing database')
-			sys.exit()
 
 		self._mqtt = None
 		self._snipsConf = self._loadSnipsConfiguration()
@@ -86,18 +75,15 @@ class Flower:
                   temp_offset=-5.5)
 
 		self._watering = threading.Timer(interval=5.0, function=self._pump, args=[False])
-
-		self._telemetryFlag = threading.Event()
-		self._telemetry = threading.Thread(target=self._queryTelemetryData)
-		self._telemetry.setDaemon(True)
-		self._telemetry.start()
-
-		self._monitoring = threading.Timer(interval=60, function=self._onMinute)
-		self._monitoring.setDaemon(True)
-		self._monitoring.start()
+		self._monitoring = None
+		self._onFiveMinute()
 
 
 	def _connectMqtt(self):
+		"""
+		Connects to master mqtt as defined in snips.toml
+		:return:
+		"""
 		try:
 			mqttClient = mqtt.Client()
 			mqttClient.on_connect = self._onConnect
@@ -110,6 +96,10 @@ class Flower:
 
 
 	def _loadSnipsConfiguration(self):
+		"""
+		Loads snips configuration file
+		:return:
+		"""
 		self._logger.info('Loading configurations')
 
 		if os.path.isfile('/etc/snips.toml'):
@@ -120,6 +110,10 @@ class Flower:
 
 
 	def _getSiteId(self):
+		"""
+		Gets the site id as defined in snips.toml
+		:return: string
+		"""
 		if 'bind' in self._snipsConf['snips-audio-server']:
 			if ':' in self._snipsConf['snips-audio-server']['bind']:
 				return self._snipsConf['snips-audio-server']['bind'].split(':')[0]
@@ -130,12 +124,20 @@ class Flower:
 
 	@staticmethod
 	def _loadPlantsData():
+		"""
+		Load the flower data file. This file holds the values for each supported flowers
+		:return: json dict
+		"""
 		with open('plantsData.json', 'r') as f:
 			data = f.read()
 			return json.loads(data)
 
 
 	def _loadFlower(self):
+		"""
+		Loads the flower informations
+		:return: boolean
+		"""
 		if os.path.isfile('me.json'):
 			with open('me.json', 'w+') as f:
 				data = f.read()
@@ -146,6 +148,10 @@ class Flower:
 
 
 	def onStop(self):
+		"""
+		Called when the program goes down. Joins the threads and cleans up the gpios
+		:return:
+		"""
 		if self._watering.isAlive():
 			self._watering.cancel()
 			self._watering.join(timeout=2)
@@ -154,20 +160,22 @@ class Flower:
 			self._monitoring.cancel()
 			self._monitoring.join(timeout=2)
 
-		if self._telemetry.isAlive():
-			self._telemetryFlag.clear()
-			self._telemetry.join(timeout=2)
-
 		gpio.cleanup()
 
 
 	def _onConnect(self, client, userdata, flags, rc):
+		"""
+		Called when mqtt connects. Does subscribe to all our intents
+		"""
 		self._mqtt.subscribe([
 			(self._MQTT_GET_TELEMETRY, 0)
 		])
 
 
 	def _onMessage(self, client, userdata, message):
+		"""
+		Called whenever a message we are subscribed to enters
+		"""
 		payload = None
 		if hasattr(message, 'payload') and message.payload != '':
 			payload = json.loads(message.payload)
@@ -177,19 +185,16 @@ class Flower:
 
 		topic = message.topic
 
-		if topic == self._MQTT_GET_TELEMETRY:
-			data = self._getTelemetryData()
-			payload = {'siteId': self._siteId, 'data': data}
-			self._mqtt.publish(topic=self._MQTT_ANSWER_TELEMETRY, payload=json.dumps(payload))
-			return
-
-		elif topic == self._MQTT_DO_WATER:
+		if topic == self._MQTT_DO_WATER:
 			self.doWater()
 
 
 	def doWater(self):
+		"""
+		Turns the internal pump on and starts a 5 second timer to turn it off again
+		"""
 		if self._watering.isAlive():
-			return False
+			return
 
 		self._pump()
 		self._watering = threading.Timer(interval=5.0, function=self._pump, args=[False])
@@ -197,13 +202,24 @@ class Flower:
 		self._watering.start()
 
 
-	def _onMinute(self):
-		self._monitoring = threading.Timer(interval=60, function=self._onMinute)
+	def _onFiveMinute(self):
+		"""
+		Called every 5 minutes, this method does ask for the latest sensor data and sends them to the main unit
+		"""
+		self._monitoring = threading.Timer(interval=300, function=self._onFiveMinute)
 		self._monitoring.setDaemon(True)
 		self._monitoring.start()
+		self._mqtt.publish(topic=self._MQTT_TELEMETRY_REPORT, payload=json.dumps({
+			'siteId': self._siteId,
+			'data': self._queryTelemetryData()
+		}))
 
 
 	def _pump(self, on=True):
+		"""
+		Turn pump on or off
+		:param on: boolean
+		"""
 		if on:
 			gpio.output(self._PUMP_PIN, gpio.HIGH)
 		else:
@@ -211,95 +227,42 @@ class Flower:
 
 
 	def _queryTelemetryData(self):
-		self._telemetryFlag.set()
-		while self._telemetryFlag.isSet():
-			data = list()
-			try: # Chirp sometimes crashes, in which case we simply recall the telemetry query
-				self._moistureSensor.wake_up()
-				self._moistureSensor.trigger()
-				time.sleep(1)
-				moisture = self._moistureSensor.moist_percent
-				light = self._moistureSensor.light
-				temperature = self._moistureSensor.temp
-				self._moistureSensor.sleep()
-				print('Moisture: {}% temperature: {:.1f}°C light: {} lux'.format(moisture, temperature, light))
-				if moisture > 100 or moisture < 0 or temperature > 100:
-					raise Exception('Impossible chirp sensor values')
-				else:
-					data.extend((temperature, light, moisture))
-			except Exception as e:
-				self._logger.error(e)
-				self._telemetryFlag.clear()
-				self._queryTelemetryData()
-
-			gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
-			if gpio.input(self._WATER_FULL_PIN):
-				data.append(100)
-			elif gpio.input(self._WATER_75_PIN):
-				data.append(75)
-			elif gpio.input(self._WATER_50_PIN):
-				data.append(50)
-			elif gpio.input(self._WATER_25_PIN):
-				data.append(25)
-			elif gpio.input(self._WATER_EMPTY_PIN):
-				data.append(0)
+		"""
+		Gets and returns all sensors data
+		:return: dict
+		"""
+		data = dict()
+		try: # Chirp sometimes crashes, in which case we simply recall the telemetry query
+			self._moistureSensor.wake_up()
+			self._moistureSensor.trigger()
+			time.sleep(1)
+			moisture = self._moistureSensor.moist_percent
+			light = self._moistureSensor.light
+			temperature = self._moistureSensor.temp
+			self._moistureSensor.sleep()
+			print('Moisture: {}% temperature: {:.1f}°C light: {} lux'.format(moisture, temperature, light))
+			if moisture > 100 or moisture < 0 or temperature > 100:
+				raise Exception('Impossible chirp sensor values')
 			else:
-				data.append(-1)
-			gpio.output(self._WATER_SENSOR_PIN, gpio.LOW)
-			self._storeTelemetryData(data)
-			time.sleep(5)
+				data['temperature'] = temperature
+				data['luminosity'] = light
+				data['moisture'] = moisture
+		except Exception as e:
+			self._logger.error(e)
+			self._queryTelemetryData()
 
-
-	def _storeTelemetryData(self, data):
-		try:
-			con = self._sqlConnection()
-			if con is None:
-				return False
-			data.insert(0, int(round(time.time())))
-			cursor = con.cursor()
-			sql = 'INSERT INTO telemetry (timestamp, temperature, luminosity, moisture, water) VALUES (?, ?, ?, ?, ?)'
-			cursor.execute(sql, data)
-		except sqlite3.Error as e:
-			print(e)
-
-		return False
-
-
-	def _getTelemetryData(self):
-		try:
-			con = self._sqlConnection()
-			if con is None:
-				return None
-			cursor = con.cursor()
-			cursor.execute('SELECT * FROM telemetry ORDER BY timestamp DESC')
-			return cursor.fetchall()
-		except sqlite3.Error as e:
-			print(e)
-			return None
-
-
-	def _initDB(self):
-		con = self._sqlConnection()
-		if con is not None:
-			self._initTables(con, self._TELEMETRY_TABLE)
-
-		return con
-
-
-	@staticmethod
-	def _sqlConnection():
-		try:
-			con = sqlite3.connect('data.db')
-			return con
-		except sqlite3.Error as e:
-			print(e)
-
-		return None
-
-
-	def _initTables(self, con, statement):
-		try:
-			cursor = con.cursor()
-			cursor.execute(statement)
-		except sqlite3.Error as e:
-			print(e)
+		gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
+		if gpio.input(self._WATER_FULL_PIN):
+			data['water'] = 100
+		elif gpio.input(self._WATER_75_PIN):
+			data['water'] = 75
+		elif gpio.input(self._WATER_50_PIN):
+			data['water'] = 50
+		elif gpio.input(self._WATER_25_PIN):
+			data['water'] = 25
+		elif gpio.input(self._WATER_EMPTY_PIN):
+			data['water'] = 0
+		else:
+			data['water'] = -1
+		gpio.output(self._WATER_SENSOR_PIN, gpio.LOW)
+		return data

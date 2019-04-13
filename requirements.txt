@@ -1,5 +1,2 @@
-# Bindings for the hermes protocol
 pytoml
-RPi.GPIO
-smbus
 paho.mqtt

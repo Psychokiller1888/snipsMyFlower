@@ -32,5 +32,25 @@
 			"Trop d'eau, je me noie!",
 			"Fais quelque chose s'il te plait, je me noie!"
 		]
+	},
+	"noData": {
+		"en": [
+			"I'm sorry but it seems I don't have any recorded data",
+			"This is weird, I don't have any data"
+		],
+		"fr": [
+			"Je suis désolée mais je n'ai pas de donnée enregistrée",
+			"C'est bizarre, je n'ai pas de donnée disponible"
+		]
+	},
+	"error": {
+		"en": [
+			"I'm so sorry, there was an error processing your request",
+			"I can't, I'm sorry, there is an error"
+		],
+		"fr": [
+			"Je suis désolée, il y a eu un problème lors du traitement de ta demande",
+			"Je ne peux pas, désolée, il y a une erreur"
+		]
 	}
 }
