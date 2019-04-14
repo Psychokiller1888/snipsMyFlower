@@ -34,6 +34,37 @@ class SnipsMyFlower:
 		water INTEGER
 	);"""
 
+	_TELEMETRY_TABLE_CORRESPONDANCE = {
+		'id': [
+			0,
+			''
+		],
+		'siteId': [
+			1,
+			''
+		],
+		'timestamp': [
+			2,
+			''
+		],
+		'temperature': [
+			3,
+			'°C'
+		],
+		'luminosity': [
+			4,
+			' lux'
+		],
+		'moisture': [
+			5,
+			'%'
+		],
+		'water': [
+			'6'
+			''
+		]
+	}
+
 	def __init__(self):
 		"""
 		Initialize this class
@@ -67,7 +98,7 @@ class SnipsMyFlower:
 		if 'sessionId' in payload:
 			sessionId = payload['sessionId']
 
-		slots = self.parseSlots(payload)
+		slots = self._parseSlots(payload)
 
 		wasIntent = ''
 		if 'wasIntent' in slots:
@@ -90,15 +121,33 @@ class SnipsMyFlower:
 				if when.value['kind'] == 'TimeInterval':
 					pass
 				elif when.value['kind'] == 'InstantTime':
-					t = when.value['value']
+					# This is a precise point in time, we only fetch the value and return it without calculation
+					# Snips returns a non pythonic date, as the timezone %z doesn't take a ':' so we get rid of it or we'll fail getting the timestamp
+					t = self._rreplace(when.value['value'], ':', '', 1)
 					try:
-						timestamp = datetime.datetime.strptime(t, '%Y-%m-%d %H:%M:%S %z').timestamp()
+						timestamp = round(datetime.datetime.strptime(t, '%Y-%m-%d %H:%M:%S %z').timestamp())
 					except Exception as e:
 						print(e)
 						self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('error'))
 						return
 
+					start = timestamp - 900 # Query for data that are max 15 minutes older than the timestamp
+					query = 'SELECT * FROM telemetry WHERE timestamp >= ? AND timestamp <= ? AND siteId = ? ORDER BY timestamp DESC'
+					data = self._sqlFetch(query, (start, timestamp, siteId))
 
+					if data is None:
+						self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('error'))
+						return
+					elif len(data) <= 0:
+						self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('noData'))
+					else:
+						# TODO unhardcode language
+						self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('instantTimeReply').format(
+							self._i18n.getRandomText(slots['when'], lang='en'),
+							self._i18n.getRandomText(slots['type'], lang='en'),
+							data[0][self._TELEMETRY_TABLE_CORRESPONDANCE[slots['type']][0]],
+							self._TELEMETRY_TABLE_CORRESPONDANCE[slots['type']][1]
+						))
 
 					return
 
@@ -206,7 +255,7 @@ class SnipsMyFlower:
 
 
 	@staticmethod
-	def parseSlots(payload):
+	def _parseSlots(payload):
 		"""
 		Parses slots from payload into simple key value list
 		:param payload: dict
@@ -233,6 +282,21 @@ class SnipsMyFlower:
 					continue
 				slots.append(Slot(slot))
 		return slots
+
+
+	@staticmethod
+	def _rreplace(string, old, new, occurence):
+		"""
+		Does a backware replace on a string, courtesy of
+		https://stackoverflow.com/questions/2556108/rreplace-how-to-replace-the-last-occurrence-of-an-expression-in-a-string
+		:param string: the original string
+		:param old: string, the characters to replace
+		:param new: string, the character to replace with
+		:param occurence: int, how many characters
+		:return:
+		"""
+		l = string.rsplit(old, occurence)
+		return new.join(l)
 
 
 	def _connectMqtt(self):
@@ -300,9 +364,24 @@ class SnipsMyFlower:
 			con = self._sqlConnection()
 			if con is None:
 				return None
-			cursor = con.cursor()
-			cursor.execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC', siteId)
-			return cursor.fetchall()
+			return con.cursor().execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC', siteId).fetchall()
+		except sqlite3.Error as e:
+			print(e)
+			return None
+
+
+	def _sqlFetch(self, query, replace):
+		"""
+		Executes a query on the database and returns the result
+		:param query: string to execute
+		:param replace: tuple, if your query has placeholders
+		:return: tuple
+		"""
+		try:
+			con = self._sqlConnection()
+			if con is None:
+				return None
+			return con.cursor().execute(query, replace).fetchall()
 		except sqlite3.Error as e:
 			print(e)
 			return None

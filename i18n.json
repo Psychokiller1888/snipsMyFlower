@@ -52,5 +52,63 @@
 			"Je suis désolée, il y a eu un problème lors du traitement de ta demande",
 			"Je ne peux pas, désolée, il y a une erreur"
 		]
+	},
+	"instantTimeReply": {
+		"en": [
+			"{0}, {1} was {2}{3}",
+			"{1} was {2}{3} {0}"
+		],
+		"fr": [
+			"{0}, {1} était de {2}{3}",
+			"{1} était de {2}{3} {0}"
+		]
+	},
+	"a week ago": {
+		"en": [
+			"a week ago"
+		],
+		"fr": [
+			"la semaine passée"
+		]
+	},
+	"temperature": {
+		"en": [
+			"the temperature"
+		],
+		"fr": [
+			"ma température"
+		]
+	},
+	"humidity": {
+		"en": [
+			"the humidity"
+		],
+		"fr": [
+			"mon humidité"
+		]
+	},
+	"luminosity": {
+		"en": [
+			"the luminosity"
+		],
+		"fr": [
+			"la semaine passée"
+		]
+	},
+	"moisture": {
+		"en": [
+			"my soil moisture"
+		],
+		"fr": [
+			"l'humidité de mon sol"
+		]
+	},
+	"water": {
+		"en": [
+			"my water level"
+		],
+		"fr": [
+			"mon nivau d'eau"
+		]
 	}
 }

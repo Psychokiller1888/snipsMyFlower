@@ -168,7 +168,8 @@ class Flower:
 		Called when mqtt connects. Does subscribe to all our intents
 		"""
 		self._mqtt.subscribe([
-			(self._MQTT_GET_TELEMETRY, 0)
+			(self._MQTT_GET_TELEMETRY, 0),
+			(self._MQTT_DO_WATER, 0)
 		])
 
 
