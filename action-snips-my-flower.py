@@ -68,7 +68,7 @@ class SnipsMyFlower:
 	def __init__(self):
 		"""
 		Initialize this class
-		Instanciates the translation class, connects to mqtt and intializes the sqlite database connection
+		Instanciates the translation class, connects to mqtt, intializes the sqlite database connection and loads plants data
 		"""
 		self._i18n = I18n()
 		self._mqtt = self._connectMqtt()
@@ -79,6 +79,8 @@ class SnipsMyFlower:
 		if self._initDB() is None:
 			print('Error initializing database')
 			sys.exit()
+
+		self._plantsData = self._loadPlantsData()
 
 
 	def _onMessage(self, client, userdata, message):
@@ -152,17 +154,20 @@ class SnipsMyFlower:
 					return
 
 		elif topic == self._MQTT_TELEMETRY_REPORT or len(payload.keys()) <= 0:
-			# Store telemetry data reported by connected plants
+			# Store telemetry data reported by connected plants, check data and alert the plant if needed
 			if siteId == 'default':
 				return
 
 			self._storeTelemetryData([
-				payload['data']['siteId'],
+				siteId,
+				payload['plant'],
 				payload['data']['temperature'],
 				payload['data']['luminosity'],
 				payload['data']['moisture'],
 				payload['data']['water']
 			])
+
+			self._checkData(payload)
 			return
 
 
@@ -252,6 +257,13 @@ class SnipsMyFlower:
 			initDict['intentFilter'] = intentFilter
 
 		self._mqtt.publish('hermes/dialogueManager/startSession', json.dumps(jsonDict))
+
+
+	def _checkData(self, payload):
+		if payload['plant'] not in self._plantsData:
+			print('Now this is very weird, but this plant does not exist in our lexic')
+			return False
+
 
 
 	@staticmethod
@@ -426,6 +438,17 @@ class SnipsMyFlower:
 			cursor.execute(statement)
 		except sqlite3.Error as e:
 			print(e)
+
+
+	@staticmethod
+	def _loadPlantsData():
+		"""
+		Load the flower data file. This file holds the values for each supported flowers
+		:return: json dict
+		"""
+		with open('plantsData.json', 'r') as f:
+			data = f.read()
+			return json.loads(data)
 
 
 if __name__ == "__main__":

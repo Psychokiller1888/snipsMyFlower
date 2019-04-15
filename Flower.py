@@ -3,6 +3,7 @@
 
 from Chirp import Chirp
 import json
+from Leds import Leds
 import logging
 import os
 import paho.mqtt.client as mqtt
@@ -30,7 +31,8 @@ class Flower:
 	def __init__(self):
 		"""
 		Initiliazes the flower instance
-		Tries to connect to master mqtt, gets its site id, loads plants data and itself and starts the 5 minute monitoring thread
+		Tries to connect to master mqtt, gets its site id, loads itself and starts the 5 minute monitoring thread
+		It also tells the master device that it is connected
 		"""
 		self._logger = logging.getLogger('SnipsMyFlower')
 		gpio.setmode(gpio.BOARD)
@@ -63,8 +65,7 @@ class Flower:
 			self._logger.error("Couldnt' get my site id, please edit /etc/snips.toml and configure ['snips-audio-server']['bind']")
 			sys.exit()
 
-		self._plantsData = self._loadPlantsData()
-		self._me = None
+		self._me = {'type': 'cactus'}
 		self._moistureSensor = Chirp(address=0x20,
                   read_moist=True,
                   read_temp=True,
@@ -73,7 +74,8 @@ class Flower:
                   max_moist=625,
                   temp_scale='celsius',
                   temp_offset=-5.5)
-
+		self._leds = Leds()
+		self._leds.onStart()
 		self._watering = threading.Timer(interval=5.0, function=self._pump, args=[False])
 		self._monitoring = None
 		self._onFiveMinute()
@@ -122,17 +124,6 @@ class Flower:
 		return False
 
 
-	@staticmethod
-	def _loadPlantsData():
-		"""
-		Load the flower data file. This file holds the values for each supported flowers
-		:return: json dict
-		"""
-		with open('plantsData.json', 'r') as f:
-			data = f.read()
-			return json.loads(data)
-
-
 	def _loadFlower(self):
 		"""
 		Loads the flower informations
@@ -160,6 +151,7 @@ class Flower:
 			self._monitoring.cancel()
 			self._monitoring.join(timeout=2)
 
+		self._leds.onStop()
 		gpio.cleanup()
 
 
@@ -206,13 +198,17 @@ class Flower:
 	def _onFiveMinute(self):
 		"""
 		Called every 5 minutes, this method does ask for the latest sensor data and sends them to the main unit
+		It also runs checks on the data to alert the user if needed
 		"""
 		self._monitoring = threading.Timer(interval=300, function=self._onFiveMinute)
 		self._monitoring.setDaemon(True)
 		self._monitoring.start()
+
+		data = self._queryTelemetryData()
 		self._mqtt.publish(topic=self._MQTT_TELEMETRY_REPORT, payload=json.dumps({
 			'siteId': self._siteId,
-			'data': self._queryTelemetryData()
+			'plant': self._me['type'],
+			'data': data
 		}))
 
 
