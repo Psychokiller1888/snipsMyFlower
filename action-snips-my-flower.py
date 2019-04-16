@@ -7,6 +7,7 @@ import sqlite3
 from I18n import I18n
 import json
 import paho.mqtt.client as mqtt
+from pathlib import Path
 import pytoml
 from Slot import Slot
 import sys
@@ -69,8 +70,13 @@ class SnipsMyFlower:
 	def __init__(self):
 		"""
 		Initialize this class
+		Checks if config folder is available
 		Instanciates the translation class, connects to mqtt, intializes the sqlite database connection and loads plants data
 		"""
+		directory = Path('/etc/snipsmyflower')
+		if not directory.exists():
+			directory.mkdir()
+
 		self._i18n = I18n()
 		self._mqtt = self._connectMqtt()
 		if not self._mqtt:

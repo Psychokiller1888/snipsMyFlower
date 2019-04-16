@@ -28,6 +28,7 @@ class Flower:
 	_MQTT_DO_WATER = 'snipsmyflower/flowers/doWater'
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
 	_MQTT_TELEMETRY_REPORT = 'snipsmyflower/flowers/telemetryData'
+	_MQTT_PLANT_ALERT = 'snipsmyflower/flowers/alert'
 
 	def __init__(self):
 		"""
@@ -162,7 +163,8 @@ class Flower:
 		"""
 		self._mqtt.subscribe([
 			(self._MQTT_GET_TELEMETRY, 0),
-			(self._MQTT_DO_WATER, 0)
+			(self._MQTT_DO_WATER, 0),
+			(self._MQTT_PLANT_ALERT, 0)
 		])
 
 
@@ -182,6 +184,8 @@ class Flower:
 
 		if topic == self._MQTT_DO_WATER:
 			self.doWater()
+		elif topic == self._MQTT_PLANT_ALERT:
+			print('alert')
 
 
 	def doWater(self):
