@@ -23,6 +23,7 @@ class SnipsMyFlower:
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
 	_MQTT_TELEMETRY_REPORT = 'snipsmyflower/flowers/telemetryData'
 	_MQTT_DO_WATER = 'snipsmyflower/flowers/doWater'
+	_MQTT_PLANT_ALERT = 'snipsmyflower/flowers/alert'
 
 	_TELEMETRY_TABLE = """ CREATE TABLE IF NOT EXISTS telemetry (
 		id integer PRIMARY KEY,
@@ -85,7 +86,7 @@ class SnipsMyFlower:
 
 	def _onMessage(self, client, userdata, message):
 		"""
-		Whenever a message we are subscribed to enter this function is called
+		Whenever a message we are subscribed to enters, this function is called
 		"""
 		try:
 			payload = json.loads(message.payload.decode('utf-8'))
@@ -260,10 +261,63 @@ class SnipsMyFlower:
 
 
 	def _checkData(self, payload):
+		"""
+		Let's check the data we got, first, and then check the long term data
+		Send alert to the plant if needed
+		:param payload: dict
+		"""
 		if payload['plant'] not in self._plantsData:
 			print('Now this is very weird, but this plant does not exist in our lexic')
 			return False
+		else:
+			data = payload['data']
+			safeData = self._plantsData[payload['plant']]
 
+			#Do we still have water?
+			if data['water'] <= 0:
+				self._alertPlant(payload['siteId'], 'min')
+				return
+
+			# Is the soil humid enough?
+			elif data['moisture'] < safeData['moisture_min'] * 0.9:
+				self._alertPlant(payload['siteId'], 'min')
+				return
+
+			# But not too humid?
+			elif data['moisture'] > safeData['moisture_max'] * 1.1:
+				self._alertPlant(payload['siteId'], 'max')
+				return
+
+			# How about the temperature, too cold?
+			elif data['temperature'] < safeData['temperature_min'] * 0.9:
+				self._alertPlant(payload['siteId'], 'min')
+				return
+
+			# Or too hot?
+			elif data['temperature'] > safeData['temperature_max'] * 1.1:
+				self._alertPlant(payload['siteId'], 'max')
+				return
+
+			# For the luminosity, we need to check upon an interval, as of course at night it will be too dark.
+			# Our telemetry reports data every 5 minutes, let's take the luminosity for the last day
+			limit = 12 * 24 # 12 reports per hour times 24
+			dbData = self._getTelemetryData(payload['siteId'], limit)
+			total = 0
+			length = 0
+			for row in dbData:
+				length += 1
+				total += row[3]
+			average = total / length
+
+			if average < safeData['luminosity_min'] * 0.9:
+				self._alertPlant(payload['siteId'], 'min')
+
+			elif average > safeData['luminosity_max'] * 1.1:
+				self._alertPlant(payload['siteId'], 'max')
+
+
+	def _alertPlant(self, siteId, limit):
+		self._mqtt.publish(topic=self._MQTT_PLANT_ALERT, payload=json.dumps({'siteId': siteId, 'limit': limit}))
 
 
 	@staticmethod
@@ -366,7 +420,7 @@ class SnipsMyFlower:
 		return False
 
 
-	def _getTelemetryData(self, siteId):
+	def _getTelemetryData(self, siteId, limit = -1):
 		"""
 		Get telemetry data from database for the given site id
 		:param siteId: string
@@ -376,7 +430,10 @@ class SnipsMyFlower:
 			con = self._sqlConnection()
 			if con is None:
 				return None
-			return con.cursor().execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC', siteId).fetchall()
+			if limit == -1:
+				return con.cursor().execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC', [siteId]).fetchall()
+			else:
+				return con.cursor().execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC LIMIT ?', [siteId, limit]).fetchall()
 		except sqlite3.Error as e:
 			print(e)
 			return None
