@@ -74,9 +74,10 @@ class SnipsMyFlower:
 		Checks if config folder is available
 		Instanciates the translation class, connects to mqtt, intializes the sqlite database connection and loads plants data
 		"""
-		self._userDir = Path('~/snipsmyflower')
+		self._userDir = Path(os.path.expanduser('~'), 'snipsmyflower')
 		if not self._userDir.exists():
 			self._userDir.mkdir()
+		self._dbFile = self._userDir / 'data.db'
 
 		self._i18n = I18n()
 		self._mqtt = self._connectMqtt()
@@ -481,7 +482,7 @@ class SnipsMyFlower:
 		:return: connection
 		"""
 		try:
-			con = sqlite3.connect('~/snipsmyflower/data.db')
+			con = sqlite3.connect(str(self._dbFile))
 			return con
 		except sqlite3.Error as e:
 			print(e)
