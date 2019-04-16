@@ -6,6 +6,7 @@ import sqlite3
 
 from I18n import I18n
 import json
+import os
 import paho.mqtt.client as mqtt
 from pathlib import Path
 import pytoml
@@ -73,7 +74,7 @@ class SnipsMyFlower:
 		Checks if config folder is available
 		Instanciates the translation class, connects to mqtt, intializes the sqlite database connection and loads plants data
 		"""
-		directory = Path('/etc/snipsmyflower')
+		directory = Path(os.path.expanduser('~'), '/snipsmyflower')
 		if not directory.exists():
 			directory.mkdir()
 
