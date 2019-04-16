@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import adafruit_dotstar
-import board
 import threading
 import time
 try:
@@ -15,7 +14,7 @@ class Leds:
 	This class runs the dotstar leds
 	"""
 	def __init__(self):
-		self._pixels = adafruit_dotstar.DotStar(board.APA102_SCK, board.APA102_MOSI, 5)
+		self._pixels = adafruit_dotstar.DotStar(11, 10, 5)
 		self._queue = Queue.Queue()
 		self._active = threading.Event()
 		self._animating = threading.Event()
@@ -40,6 +39,7 @@ class Leds:
 		Adds an animation to the animation queue
 		:param func: fonction aka animation, to add to the queue
 		"""
+
 		self._clearAnimation()
 		if self._active.isSet():
 			self._queue.put(func)
@@ -62,6 +62,16 @@ class Leds:
 		self._put(self._startAnimation)
 
 
+	def onDisplayMeter(self, percentage, color=None, autoAlert=False):
+		"""
+		Playing meter animation
+		"""
+		if color is None:
+			color = [0, 0, 0]
+
+		self._put(lambda: self._displayMeter(color, percentage, autoAlert))
+
+
 	def _startAnimation(self):
 		"""
 		Start animation, gradually fill the pixels with blue
@@ -70,6 +80,7 @@ class Leds:
 		while i < 5:
 			self._pixels[i] = [0, 0, 255]
 			time.sleep(0.5)
+			i += 1
 		time.sleep(1)
 		self._clear()
 
@@ -85,14 +96,15 @@ class Leds:
 		i = 0
 		while i < ledsToLight:
 			self._pixels[i] = color
+			i += 1
 			time.sleep(0.5)
 
 		self._timer = threading.Timer(interval=10, function=self._clear)
 		self._timer.setDaemon(True)
 		self._timer.start()
 
-		self._animating.set()
 		bri = 1.0
+		self._animating.set()
 		while self._animating.isSet():
 			if bri > 0.1:
 				bri -= 0.1

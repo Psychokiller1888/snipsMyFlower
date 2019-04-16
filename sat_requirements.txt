@@ -1,5 +1,5 @@
 RPi.GPIO
 paho.mqtt
 pytoml
-Adafruit-Blinka
+adafruit-circuitpython-lis3dh
 adafruit-circuitpython-dotstar

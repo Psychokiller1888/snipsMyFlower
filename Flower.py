@@ -15,14 +15,15 @@ import time
 
 class Flower:
 
-	_WATER_SENSOR_PIN = 16
-	_WATER_EMPTY_PIN = 29
-	_WATER_25_PIN = 22
-	_WATER_50_PIN = 24
-	_WATER_75_PIN = 26
-	_WATER_FULL_PIN = 36
+	""" gpio.BCM #gpio.Board pin numbers"""
+	_WATER_SENSOR_PIN = 23 #16
+	_WATER_EMPTY_PIN = 5 #29
+	_WATER_25_PIN = 25 #22
+	_WATER_50_PIN = 8 #24
+	_WATER_75_PIN = 7 #26
+	_WATER_FULL_PIN = 16 #36
 
-	_PUMP_PIN = 37
+	_PUMP_PIN = 26 #37
 
 	_MQTT_DO_WATER = 'snipsmyflower/flowers/doWater'
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
@@ -35,7 +36,7 @@ class Flower:
 		It also tells the master device that it is connected
 		"""
 		self._logger = logging.getLogger('SnipsMyFlower')
-		gpio.setmode(gpio.BOARD)
+		gpio.setmode(gpio.BCM)
 		gpio.setwarnings(False)
 		gpio.setup(self._PUMP_PIN, gpio.OUT)
 		gpio.setup(self._WATER_SENSOR_PIN, gpio.OUT)
@@ -169,9 +170,10 @@ class Flower:
 		"""
 		Called whenever a message we are subscribed to enters
 		"""
-		payload = None
-		if hasattr(message, 'payload') and message.payload != '':
-			payload = json.loads(message.payload)
+		try:
+			payload = json.loads(message.payload.decode('utf-8'))
+		except:
+			payload = dict()
 
 		if 'siteId' not in payload or payload['siteId'] != self._siteId:
 			return
@@ -190,7 +192,7 @@ class Flower:
 			return
 
 		self._pump()
-		self._watering = threading.Timer(interval=5.0, function=self._pump, args=[False])
+		self._watering = threading.Timer(interval=3.0, function=self._pump, args=[False])
 		self._watering.setDaemon(True)
 		self._watering.start()
 
