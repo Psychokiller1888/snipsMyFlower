@@ -74,9 +74,9 @@ class SnipsMyFlower:
 		Checks if config folder is available
 		Instanciates the translation class, connects to mqtt, intializes the sqlite database connection and loads plants data
 		"""
-		directory = Path(os.path.expanduser('~'), '/snipsmyflower')
-		if not directory.exists():
-			directory.mkdir()
+		self._userDir = Path(os.path.expanduser('~'), '/snipsmyflower')
+		if not self._userDir.exists():
+			self._userDir.mkdir()
 
 		self._i18n = I18n()
 		self._mqtt = self._connectMqtt()
@@ -475,14 +475,13 @@ class SnipsMyFlower:
 		return con
 
 
-	@staticmethod
-	def _sqlConnection():
+	def _sqlConnection(self):
 		"""
 		Connects to a sqlite3 database
 		:return: connection
 		"""
 		try:
-			con = sqlite3.connect('/etc/snipsMyFlower/data.db')
+			con = sqlite3.connect('{}/data.db'.format(self._userDir))
 			return con
 		except sqlite3.Error as e:
 			print(e)
