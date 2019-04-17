@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import adafruit_dotstar
+from adafruit_blinka.board import raspi_40pin as board
 import threading
 import time
 try:
@@ -14,7 +15,7 @@ class Leds:
 	This class runs the dotstar leds
 	"""
 	def __init__(self):
-		self._pixels = adafruit_dotstar.DotStar(11, 10, 5)
+		self._pixels = adafruit_dotstar.DotStar(board.SCK, board.MOSI, 5, brightness=0.2)
 		self._queue = Queue.Queue()
 		self._active = threading.Event()
 		self._animating = threading.Event()
@@ -29,7 +30,7 @@ class Leds:
 		Called when the program goes down. Clears the animation and stops the loop
 		"""
 		self._active.clear()
-		self._clearAnimation()
+		self._clear()
 		if self._thread.isAlive():
 			self._thread.join(timeout=2)
 
@@ -97,21 +98,23 @@ class Leds:
 		while i < ledsToLight:
 			self._pixels[i] = color
 			i += 1
-			time.sleep(0.5)
+			time.sleep(0.25)
 
-		self._timer = threading.Timer(interval=10, function=self._clear)
-		self._timer.setDaemon(True)
-		self._timer.start()
+		if not autoAlert:
+			self._timer = threading.Timer(interval=10, function=self._clear)
+			self._timer.setDaemon(True)
+			self._timer.start()
 
 		bri = 1.0
+		direction = -1
 		self._animating.set()
 		while self._animating.isSet():
-			if bri > 0.1:
-				bri -= 0.1
-			else:
-				bri += 0.1
-				if bri > 1.0:
-					bri = 1.0
+			if bri > 0.9:
+				direction = -1
+			elif bri < 0.2:
+				direction = 1
+			bri += direction * 0.02
+			bri = round(bri, 2)
 			self._pixels.brightness = bri
 			time.sleep(0.1)
 
@@ -121,7 +124,7 @@ class Leds:
 		Used to clear the leds, turn them off. Stops any running animation and sets the leds to [0, 0, 0]
 		"""
 		self._clearAnimation()
-		self._pixels.fill([0, 0, 0])
+		self._pixels.fill(0)
 
 
 	def _clearAnimation(self):

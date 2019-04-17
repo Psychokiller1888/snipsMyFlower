@@ -1,11 +1,11 @@
 {
 	"cactus": {
-		"moisture_min": 10,
-		"moisture_max": 30,
-		"temperature_min": 10,
-		"temperature_max": 80,
-		"humidity_max": 75,
-		"humidity_min": 10,
+		"moisture_min": 10.0,
+		"moisture_max": 30.0,
+		"temperature_min": 10.0,
+		"temperature_max": 80.0,
+		"humidity_max": 75.0,
+		"humidity_min": 10.0,
 		"luminosity_min": 1000,
 		"luminosity_max": 1000
 	}

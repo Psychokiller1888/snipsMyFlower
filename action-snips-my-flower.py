@@ -74,7 +74,7 @@ class SnipsMyFlower:
 		Checks if config folder is available
 		Instanciates the translation class, connects to mqtt, intializes the sqlite database connection and loads plants data
 		"""
-		self._userDir = Path(os.path.expanduser('~'), 'snipsmyflower')
+		self._userDir = Path(os.path.expanduser('~'), 'snipsflower')
 		if not self._userDir.exists():
 			self._userDir.mkdir()
 		self._dbFile = self._userDir / 'data.db'
@@ -167,16 +167,15 @@ class SnipsMyFlower:
 			if siteId == 'default':
 				return
 
+			self._checkData(payload)
+
 			self._storeTelemetryData([
-				siteId,
 				payload['plant'],
 				payload['data']['temperature'],
 				payload['data']['luminosity'],
 				payload['data']['moisture'],
 				payload['data']['water']
 			])
-
-			self._checkData(payload)
 			return
 
 
@@ -281,29 +280,30 @@ class SnipsMyFlower:
 			data = payload['data']
 			safeData = self._plantsData[payload['plant']]
 
+			print(data['water'])
 			#Do we still have water?
 			if data['water'] <= 0:
-				self._alertPlant(payload['siteId'], 'min')
+				self._alertPlant(payload['siteId'], 'water', 'min')
 				return
 
 			# Is the soil humid enough?
 			elif data['moisture'] < safeData['moisture_min'] * 0.9:
-				self._alertPlant(payload['siteId'], 'min')
+				self._alertPlant(payload['siteId'], 'moisture', 'min')
 				return
 
 			# But not too humid?
 			elif data['moisture'] > safeData['moisture_max'] * 1.1:
-				self._alertPlant(payload['siteId'], 'max')
+				self._alertPlant(payload['siteId'], 'moisture', 'max')
 				return
 
 			# How about the temperature, too cold?
 			elif data['temperature'] < safeData['temperature_min'] * 0.9:
-				self._alertPlant(payload['siteId'], 'min')
+				self._alertPlant(payload['siteId'], 'temperature', 'min')
 				return
 
 			# Or too hot?
 			elif data['temperature'] > safeData['temperature_max'] * 1.1:
-				self._alertPlant(payload['siteId'], 'max')
+				self._alertPlant(payload['siteId'], 'temperature', 'max')
 				return
 
 			# For the luminosity, we need to check upon an interval, as of course at night it will be too dark.
@@ -318,14 +318,14 @@ class SnipsMyFlower:
 			average = total / length
 
 			if average < safeData['luminosity_min'] * 0.9:
-				self._alertPlant(payload['siteId'], 'min')
+				self._alertPlant(payload['siteId'], 'luminosity', 'min')
 
 			elif average > safeData['luminosity_max'] * 1.1:
-				self._alertPlant(payload['siteId'], 'max')
+				self._alertPlant(payload['siteId'], 'luminosity', 'max')
 
 
-	def _alertPlant(self, siteId, limit):
-		self._mqtt.publish(topic=self._MQTT_PLANT_ALERT, payload=json.dumps({'siteId': siteId, 'limit': limit}))
+	def _alertPlant(self, siteId, telemetry, limit):
+		self._mqtt.publish(topic=self._MQTT_PLANT_ALERT, payload=json.dumps({'siteId': siteId, 'telemetry': telemetry, 'limit': limit}))
 
 
 	@staticmethod
@@ -422,7 +422,11 @@ class SnipsMyFlower:
 			cursor = con.cursor()
 			sql = 'INSERT INTO telemetry (siteId, timestamp, temperature, luminosity, moisture, water) VALUES (?, ?, ?, ?, ?, ?)'
 			cursor.execute(sql, data)
+			con.commit()
+			con.close()
 		except sqlite3.Error as e:
+			print(e)
+		except Exception as e:
 			print(e)
 
 		return False
@@ -439,9 +443,11 @@ class SnipsMyFlower:
 			if con is None:
 				return None
 			if limit == -1:
-				return con.cursor().execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC', [siteId]).fetchall()
+				rows = con.cursor().execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC', [siteId]).fetchall()
 			else:
-				return con.cursor().execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC LIMIT ?', [siteId, limit]).fetchall()
+				rows = con.cursor().execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC LIMIT ?', [siteId, limit]).fetchall()
+			con.close()
+			return rows
 		except sqlite3.Error as e:
 			print(e)
 			return None
@@ -458,7 +464,9 @@ class SnipsMyFlower:
 			con = self._sqlConnection()
 			if con is None:
 				return None
-			return con.cursor().execute(query, replace).fetchall()
+			rows = con.cursor().execute(query, replace).fetchall()
+			con.close()
+			return rows
 		except sqlite3.Error as e:
 			print(e)
 			return None
@@ -472,8 +480,10 @@ class SnipsMyFlower:
 		con = self._sqlConnection()
 		if con is not None:
 			self._initTable(con, self._TELEMETRY_TABLE)
+			con.close()
+			return True
 
-		return con
+		return False
 
 
 	def _sqlConnection(self):

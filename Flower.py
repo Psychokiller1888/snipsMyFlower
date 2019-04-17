@@ -19,8 +19,8 @@ class Flower:
 	_WATER_SENSOR_PIN = 23 #16
 	_WATER_EMPTY_PIN = 5 #29
 	_WATER_25_PIN = 25 #22
-	_WATER_50_PIN = 8 #24
-	_WATER_75_PIN = 7 #26
+	_WATER_50_PIN = 27 #13
+	_WATER_75_PIN = 22 #15
 	_WATER_FULL_PIN = 16 #36
 
 	_PUMP_PIN = 26 #37
@@ -69,13 +69,13 @@ class Flower:
 
 		self._me = {'type': 'cactus'}
 		self._moistureSensor = Chirp(address=0x20,
-                  read_moist=True,
-                  read_temp=True,
-                  read_light=True,
-                  min_moist=214,
-                  max_moist=625,
-                  temp_scale='celsius',
-                  temp_offset=-5.5)
+                   read_moist=True,
+                   read_temp=True,
+                   read_light=True,
+                   min_moist=214,
+                   max_moist=625,
+                   temp_scale='celsius',
+                   temp_offset=-5.5)
 		self._leds = Leds()
 		self._leds.onStart()
 		self._watering = threading.Timer(interval=5.0, function=self._pump, args=[False])
@@ -183,12 +183,13 @@ class Flower:
 		topic = message.topic
 
 		if topic == self._MQTT_DO_WATER:
-			self.doWater()
+			self._doWater()
 		elif topic == self._MQTT_PLANT_ALERT:
-			print('alert')
+			print('alert of type: {} on {}'.format(payload['telemetry'], payload['limit']))
+			self._onAlert(payload['telemetry'], payload['limit'])
 
 
-	def doWater(self):
+	def _doWater(self):
 		"""
 		Turns the internal pump on and starts a 5 second timer to turn it off again
 		"""
@@ -218,6 +219,14 @@ class Flower:
 		}))
 
 
+	def _onAlert(self, sensor, limit):
+		if sensor == 'water':
+			if limit == 'min':
+				self._leds.onDisplayMeter(percentage=20, color=[255, 0, 0], autoAlert=True)
+			else:
+				self._leds.onDisplayMeter(percentage=100, color=[255, 0, 0], autoAlert=True)
+
+
 	def _pump(self, on=True):
 		"""
 		Turn pump on or off
@@ -234,7 +243,7 @@ class Flower:
 		Gets and returns all sensors data
 		:return: dict
 		"""
-		data = dict()
+		data = dict({'siteId': self._siteId})
 		try: # Chirp sometimes crashes, in which case we simply recall the telemetry query
 			self._moistureSensor.wake_up()
 			self._moistureSensor.trigger()
