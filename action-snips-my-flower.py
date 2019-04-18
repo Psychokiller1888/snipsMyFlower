@@ -22,6 +22,7 @@ class SnipsMyFlower:
 	_INTENT_TELEMETRY = 'hermes/intent/Psychokiller1888:telemetry'
 	_INTENT_ANSWER_FLOWER = 'hermes/intent/Psychokiller1888:flowerNames'
 	_INTENT_WATER_FILLING = 'hermes/intent/Psychokiller1888:waterFilling'
+	_INTENT_EMPTY_WATER = 'hermes/intent/Psychokiller1888:emptyWater'
 
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
 	_MQTT_TELEMETRY_REPORT = 'snipsmyflower/flowers/telemetryData'
@@ -29,6 +30,10 @@ class SnipsMyFlower:
 	_MQTT_PLANT_ALERT = 'snipsmyflower/flowers/alert'
 	_MQTT_REFILL_MODE = 'snipsmyflower/flowers/refillMode'
 	_MQTT_REFILL_FULL = 'snipsmyflower/flowers/refillFull'
+	_MQTT_EMPTY_WATER = 'snipsmyflower/flowers/emptyWater'
+	_MQTT_WATER_EMPTIED = 'snipsmyflower/flowers/waterEmptied'
+
+	_MQTT_REFUSED = 'snipsmyflower/flowers/refused'
 
 	_TELEMETRY_TABLE = """ CREATE TABLE IF NOT EXISTS telemetry (
 		id integer PRIMARY KEY,
@@ -127,7 +132,7 @@ class SnipsMyFlower:
 
 			if 'when' not in slots:
 				# If the user did not provide a timeframe info, return him the actual data
-				self.endDialog(sessionId=sessionId, text=data[0][slots['type']])
+				self.endDialog(sessionId=sessionId, text=data[0][self._TELEMETRY_TABLE_CORRESPONDANCE[slots['type']][0]])
 			else:
 				# User asked for a time specific data
 				when = self._getSlotInfo('when', payload)[0]
@@ -165,7 +170,7 @@ class SnipsMyFlower:
 
 					return
 
-		elif topic == self._MQTT_TELEMETRY_REPORT or len(payload.keys()) <= 0:
+		elif topic == self._MQTT_TELEMETRY_REPORT:
 			# Store telemetry data reported by connected plants, check data and alert the plant if needed
 			if siteId == 'default':
 				return
@@ -182,10 +187,10 @@ class SnipsMyFlower:
 			return
 
 
-
 		elif topic == self._INTENT_WATER:
 			# User asking for the plant to activate its internal pump
 			if siteId == 'default':
+				self.endDialog(sessionId=sessionId)
 				return
 			self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('thankyou'))
 			self._mqtt.publish(topic=self._MQTT_DO_WATER, payload=json.dumps({'siteId': siteId}))
@@ -194,13 +199,15 @@ class SnipsMyFlower:
 		elif topic == self._INTENT_WATER_FILLING:
 			# User wants to fill the water tank
 			if siteId == 'default':
+				self.endDialog(sessionId=sessionId)
 				return
 
 			data = self._getTelemetryData(siteId, 1)
+			print(data)
 			if len(data) <= 0:
 				self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('noData'))
 				return
-			elif data[0]['water'] >= 75:
+			elif data[0][6] >= 100:
 				self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('refillNotNeeded'))
 				return
 			else:
@@ -209,8 +216,22 @@ class SnipsMyFlower:
 
 		elif topic == self._MQTT_REFILL_FULL:
 			# Plant reports tank as full
-			self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('refillingDone'))
+			self.say(text=self._i18n.getRandomText('refillingDone'), client=siteId)
 			return
+
+		elif topic == self._INTENT_EMPTY_WATER:
+			# User wants to empty the water tank
+			self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('confirm'))
+			self._mqtt.publish(topic=self._MQTT_EMPTY_WATER, payload=json.dumps({'siteId': siteId}))
+
+		elif topic == self._MQTT_WATER_EMPTIED:
+			# Plant reports as emptied
+			self.say(text=self._i18n.getRandomText('waterEmptied'), client=siteId)
+
+		elif topic == self._MQTT_REFUSED:
+			# The plant refused a command that was sent to her
+			self.say(text=self._i18n.getRandomText('refused'), client=siteId)
+
 
 
 	def onStop(self):
@@ -292,6 +313,23 @@ class SnipsMyFlower:
 		self._mqtt.publish('hermes/dialogueManager/startSession', json.dumps(jsonDict))
 
 
+	def say(self, text, client='default', customData=''):
+		"""
+		Just say something on the given client id
+		:param customData: json object
+		:param text: string
+		:param client: string
+		"""
+		self._mqtt.publish('hermes/dialogueManager/startSession', json.dumps({
+			'siteId'    : client,
+			'init'      : {
+				'type': 'notification',
+				'text': text
+			},
+			'customData': customData
+		}))
+
+
 	def _checkData(self, payload):
 		"""
 		Let's check the data we got, first, and then check the long term data
@@ -302,51 +340,54 @@ class SnipsMyFlower:
 			print('Now this is very weird, but this plant does not exist in our lexic')
 			return False
 		else:
-			data = payload['data']
-			safeData = self._plantsData[payload['plant']]
+			try:
+				data = payload['data']
+				safeData = self._plantsData[payload['plant']]
 
-			print(data['water'])
-			#Do we still have water?
-			if data['water'] <= 0:
-				self._alertPlant(payload['siteId'], 'water', 'min')
-				return
+				#Do we still have water?
+				if data['water'] <= 0:
+					self._alertPlant(payload['siteId'], 'water', 'min')
+					return
 
-			# Is the soil humid enough?
-			elif data['moisture'] < safeData['moisture_min'] * 0.9:
-				self._alertPlant(payload['siteId'], 'moisture', 'min')
-				return
+				# Is the soil humid enough?
+				elif data['moisture'] < safeData['moisture_min'] * 0.9:
+					self._alertPlant(payload['siteId'], 'moisture', 'min')
+					return
 
-			# But not too humid?
-			elif data['moisture'] > safeData['moisture_max'] * 1.1:
-				self._alertPlant(payload['siteId'], 'moisture', 'max')
-				return
+				# But not too humid?
+				elif data['moisture'] > safeData['moisture_max'] * 1.1:
+					self._alertPlant(payload['siteId'], 'moisture', 'max')
+					return
 
-			# How about the temperature, too cold?
-			elif data['temperature'] < safeData['temperature_min'] * 0.9:
-				self._alertPlant(payload['siteId'], 'temperature', 'min')
-				return
+				# How about the temperature, too cold?
+				elif data['temperature'] < safeData['temperature_min'] * 0.9:
+					self._alertPlant(payload['siteId'], 'temperature', 'min')
+					return
 
-			# Or too hot?
-			elif data['temperature'] > safeData['temperature_max'] * 1.1:
-				self._alertPlant(payload['siteId'], 'temperature', 'max')
-				return
+				# Or too hot?
+				elif data['temperature'] > safeData['temperature_max'] * 1.1:
+					self._alertPlant(payload['siteId'], 'temperature', 'max')
+					return
 
-			# For the luminosity, we need to check upon an interval, as of course at night it will be too dark.
-			# Our telemetry reports data every 5 minutes, let's take the luminosity for the last day
-			limit = 12 * 24 # 12 reports per hour times 24
-			dbData = self._getTelemetryData(payload['siteId'], limit)
-			total = 0
-			length = 0
-			for row in dbData:
-				length += 1
-				total += row[3]
-			average = total / length
+				# For the luminosity, we need to check upon an interval, as of course at night it will be too dark.
+				# Our telemetry reports data every 5 minutes, let's take the luminosity for the last day
+				limit = 12 * 24 # 12 reports per hour times 24
+				dbData = self._getTelemetryData(payload['siteId'], limit)
+				total = 0
+				length = 0
+				for row in dbData:
+					print(row)
+					length += 1
+					total += row[3]
+				average = total / length
 
-			if average < safeData['luminosity_min'] * 0.9:
-				self._alertPlant(payload['siteId'], 'luminosity', 'min')
+				if average < safeData['luminosity_min'] * 0.9:
+					self._alertPlant(payload['siteId'], 'luminosity', 'min')
 
-			elif average > safeData['luminosity_max'] * 1.1:
-				self._alertPlant(payload['siteId'], 'luminosity', 'max')
+				elif average > safeData['luminosity_max'] * 1.1:
+					self._alertPlant(payload['siteId'], 'luminosity', 'max')
+			except Exception as e:
+				print(e)
 
 
 	def _alertPlant(self, siteId, telemetry, limit):
@@ -431,7 +472,10 @@ class SnipsMyFlower:
 			(self._INTENT_TELEMETRY, 0),
 			(self._INTENT_ANSWER_FLOWER, 0),
 			(self._INTENT_WATER_FILLING, 0),
-			(self._MQTT_REFILL_FULL, 0)
+			(self._MQTT_REFILL_FULL, 0),
+			(self._INTENT_EMPTY_WATER, 0),
+			(self._MQTT_WATER_EMPTIED, 0),
+			(self._MQTT_REFUSED, 0)
 		])
 
 

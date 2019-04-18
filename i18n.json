@@ -140,5 +140,35 @@
 			"Je n'ai pas besoin de remplir pour le moment",
 			"Pas besoin pour le moment, j'ai assez d'eau"
 		]
+	},
+	"confirm": {
+		"en": [
+			"Ok",
+			"Sure, I'm doing it"
+		],
+		"fr": [
+			"Ok",
+			"D'accord"
+		]
+	},
+	"waterEmptied": {
+		"en": [
+			"I have emptied my whole tank",
+			"My water tank is completly dry"
+		],
+		"fr": [
+			"Mon réservoir d'eau est vide",
+			"J'ai vidé tout mon réservoir d'eau"
+		]
+	},
+	"refused": {
+		"en": [
+			"I'm sorry, I can't",
+			"I can't do this now"
+		],
+		"fr": [
+			"Pardon mais je ne peux pas",
+			"Désolée, ce n'est pas possible maintenant"
+		]
 	}
 }

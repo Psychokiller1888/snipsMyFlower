@@ -31,6 +31,10 @@ class Flower:
 	_MQTT_PLANT_ALERT = 'snipsmyflower/flowers/alert'
 	_MQTT_REFILL_MODE = 'snipsmyflower/flowers/refillMode'
 	_MQTT_REFILL_FULL = 'snipsmyflower/flowers/refillFull'
+	_MQTT_EMPTY_WATER = 'snipsmyflower/flowers/emptyWater'
+	_MQTT_WATER_EMPTIED = 'snipsmyflower/flowers/waterEmptied'
+
+	_MQTT_REFUSED = 'snipsmyflower/flowers/refused'
 
 	def __init__(self):
 		"""
@@ -71,18 +75,19 @@ class Flower:
 
 		self._me = {'type': 'cactus'}
 		self._moistureSensor = Chirp(address=0x20,
-                   read_moist=True,
-                   read_temp=True,
-                   read_light=True,
-                   min_moist=214,
-                   max_moist=625,
-                   temp_scale='celsius',
-                   temp_offset=-5.5)
+                    read_moist=True,
+                    read_temp=True,
+                    read_light=True,
+                    min_moist=214,
+                    max_moist=625,
+                    temp_scale='celsius',
+                    temp_offset=-0.5)
 		self._leds = Leds()
 		self._leds.onStart()
 		self._watering = threading.Timer(interval=5.0, function=self._pump, args=[False])
 		self._monitoring = None
 		self._refilling = None
+		self._emptying = None
 		self._onFiveMinute()
 
 
@@ -157,8 +162,10 @@ class Flower:
 			self._monitoring.join(timeout=2)
 
 		if self._refilling is not None and self._refilling.isAlive():
-			self._refilling.cancel()
 			self._refilling.join(timeout=2)
+
+		if self._emptying is not None and self._emptying.isAlive():
+			self._emptying.join(timeout=2)
 
 		self._leds.onStop()
 		gpio.cleanup()
@@ -172,7 +179,8 @@ class Flower:
 			(self._MQTT_GET_TELEMETRY, 0),
 			(self._MQTT_DO_WATER, 0),
 			(self._MQTT_PLANT_ALERT, 0),
-			(self._MQTT_REFILL_MODE, 0)
+			(self._MQTT_REFILL_MODE, 0),
+			(self._MQTT_EMPTY_WATER, 0)
 		])
 
 
@@ -196,9 +204,21 @@ class Flower:
 			#print('alert of type: {} on {}'.format(payload['telemetry'], payload['limit']))
 			self._onAlert(payload['telemetry'], payload['limit'])
 		elif topic == self._MQTT_REFILL_MODE:
+			if self._emptying is not None and self._emptying.isAlive() or self._watering.isAlive():
+				self._mqtt.publish(topic=self._MQTT_REFUSED, payload=json.dumps({'siteId': self._siteId}))
+				return
+
 			self._refilling = threading.Thread(target=self._refillingMode)
 			self._refilling.setDaemon(True)
 			self._refilling.start()
+		elif topic == self._MQTT_EMPTY_WATER:
+			if self._refilling is not None and self._refilling.isAlive() or self._watering.isAlive():
+				self._mqtt.publish(topic=self._MQTT_REFUSED, payload=json.dumps({'siteId': self._siteId}))
+				return
+
+			self._emptying = threading.Thread(target=self._emptyingMode)
+			self._emptying.setDaemon(True)
+			self._emptying.start()
 
 
 	def _doWater(self):
@@ -219,23 +239,98 @@ class Flower:
 		User asked for tank refilling. We need to update the led indicator according to water level
 		and to alert the user when the level is full which will stop the refilling mode
 		"""
+		self._leds.clear()
 		gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
 		refilling = True
+		was = 0
 		while refilling:
 			if gpio.input(self._WATER_FULL_PIN):
-				self._leds.onDisplayMeter(100, [0, 0, 139], False)
-				self._mqtt.publish(topic=self._MQTT_REFILL_FULL, payload=json.dumps({'siteId': self._siteId}))
-				refilling = False
+				if was != 100:
+					print(100)
+					was = 100
+					self._leds.onDisplayLevel(5, [0, 0, 255])
+					self._mqtt.publish(topic=self._MQTT_REFILL_FULL, payload=json.dumps({'siteId': self._siteId}))
+					time.sleep(5)
+					self._leds.clear()
+					refilling = False
 			elif gpio.input(self._WATER_75_PIN):
-				self._leds.onDisplayMeter(75, [0, 0, 255], True)
+				if was != 75:
+					print(75)
+					was = 75
+					self._leds.onDisplayLevel(4, [0, 0, 255])
 			elif gpio.input(self._WATER_50_PIN):
-				self._leds.onDisplayMeter(50, [106, 90, 205], True)
+				if was != 50:
+					print(50)
+					was = 50
+					self._leds.onDisplayLevel(3, [0, 0, 255])
 			elif gpio.input(self._WATER_25_PIN):
-				self._leds.onDisplayMeter(25, [100, 149, 237], True)
+				if was != 25:
+					print(25)
+					was = 25
+					self._leds.onDisplayLevel(2, [0, 0, 255])
 			elif gpio.input(self._WATER_EMPTY_PIN):
-				self._leds.onDisplayMeter(0, [135, 206, 250], True)
+				if was != 0:
+					print(0)
+					was = 0
+					self._leds.onDisplayLevel(1, [0, 0, 255])
 			else:
-				self._leds.onDisplayMeter(0, [0, 0, 255], True)
+				if was != -1:
+					print(-1)
+					was = -1
+					self._leds.onDisplayLevel(0, [0, 0, 255])
+
+			time.sleep(0.25)
+
+		gpio.output(self._WATER_SENSOR_PIN, gpio.LOW)
+
+
+	def _emptyingMode(self):
+		"""
+		User asked to empty the tank. Let's run the pump for as long as the sensor returns not -1
+		"""
+		print('here')
+		self._leds.clear()
+		gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
+		self._pump()
+		was = 0
+		emptying = True
+		while emptying:
+			if gpio.input(self._WATER_FULL_PIN):
+				if was != 100:
+					print(100)
+					was = 100
+					self._leds.onDisplayLevel(5, [0, 0, 255])
+			elif gpio.input(self._WATER_75_PIN):
+				if was != 75:
+					print(75)
+					was = 75
+					self._leds.onDisplayLevel(4, [0, 0, 255])
+			elif gpio.input(self._WATER_50_PIN):
+				if was != 50:
+					print(50)
+					was = 50
+					self._leds.onDisplayLevel(3, [0, 0, 255])
+			elif gpio.input(self._WATER_25_PIN):
+				if was != 25:
+					print(25)
+					was = 25
+					self._leds.onDisplayLevel(2, [0, 0, 255])
+			elif gpio.input(self._WATER_EMPTY_PIN):
+				if was != 0:
+					print(0)
+					was = 0
+					self._leds.onDisplayLevel(1, [0, 0, 255])
+			else:
+				if was != -1:
+					print(-1)
+					was = -1
+					self._leds.onDisplayLevel(1, [0, 0, 255])
+					time.sleep(5)
+					self._leds.onDisplayLevel(0, [0, 0, 255])
+					time.sleep(10)
+					self._mqtt.publish(topic=self._MQTT_WATER_EMPTIED, payload=json.dumps({'siteId': self._siteId}))
+					self._pump(False)
+					emptying=False
 
 			time.sleep(0.25)
 
@@ -292,7 +387,9 @@ class Flower:
 			light = self._moistureSensor.light
 			temperature = self._moistureSensor.temp
 			self._moistureSensor.sleep()
-			print('Moisture: {}% temperature: {:.1f}°C light: {} lux'.format(moisture, temperature, light))
+			# moisture = 15
+			# temperature = 20
+			# light = 2356
 			if moisture > 100 or moisture < 0 or temperature > 100:
 				raise Exception('Impossible chirp sensor values')
 			else:
@@ -301,7 +398,7 @@ class Flower:
 				data['moisture'] = moisture
 		except Exception as e:
 			self._logger.error(e)
-			self._queryTelemetryData()
+			return self._queryTelemetryData()
 
 		gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
 		if gpio.input(self._WATER_FULL_PIN):
@@ -317,4 +414,6 @@ class Flower:
 		else:
 			data['water'] = -1
 		gpio.output(self._WATER_SENSOR_PIN, gpio.LOW)
+
+		print('Moisture: {}% temperature: {:.1f}°C light: {} lux water: {}'.format(moisture, temperature, light, data['water']))
 		return data

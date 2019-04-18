@@ -6,6 +6,8 @@ if [ "$EUID" -ne 0 ]
   exit
 fi
 
+echo "dtparam=i2c1_baudrate=30000" >> /boot/config.txt
+
 pip3 install virtualenv
 mkdir logs
 
@@ -22,5 +24,4 @@ then
 fi
 
 . $VENV/bin/activate
-
 pip3 install -r sat_requirements.txt

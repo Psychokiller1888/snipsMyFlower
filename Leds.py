@@ -30,7 +30,7 @@ class Leds:
 		Called when the program goes down. Clears the animation and stops the loop
 		"""
 		self._active.clear()
-		self._clear()
+		self.clear()
 		if self._thread.isAlive():
 			self._thread.join(timeout=2)
 
@@ -73,17 +73,42 @@ class Leds:
 		self._put(lambda: self._displayMeter(color, percentage, autoAlert))
 
 
+	def onDisplayLevel(self, numleds, color=None):
+		"""
+		Showing water level live
+		"""
+		if color is None:
+			color = [0, 0, 0]
+
+		self._put(lambda: self._displayLevel(numleds, color))
+
+
 	def _startAnimation(self):
 		"""
 		Start animation, gradually fill the pixels with blue
 		"""
+		self._pixels.brightness = 1.0
 		i = 0
 		while i < 5:
 			self._pixels[i] = [0, 0, 255]
 			time.sleep(0.5)
 			i += 1
 		time.sleep(1)
-		self._clear()
+		self.clear()
+
+
+	def _displayLevel(self, numLeds, color):
+		"""
+		Used when filling or emptying the tank
+		:type color: RGB array
+		:param numLeds: integer
+		"""
+		self.clear()
+
+		i = 0
+		while i < numLeds:
+			self._pixels[i] = color
+			i += 1
 
 
 	def _displayMeter(self, color, percentage, autoAlert=False):
@@ -93,6 +118,8 @@ class Leds:
 		:param percentage: A multiple of 20 as we have 5 leds only!
 		:param autoAlert: If not an automated alert but info asked by the user, the animation will stop after 10 seconds. Otherwise it will stay on
 		"""
+		self.clear()
+
 		ledsToLight = int(percentage / 20)
 		i = 0
 		while i < ledsToLight:
@@ -101,7 +128,7 @@ class Leds:
 			time.sleep(0.25)
 
 		if not autoAlert:
-			self._timer = threading.Timer(interval=10, function=self._clear)
+			self._timer = threading.Timer(interval=10, function=self.clear)
 			self._timer.setDaemon(True)
 			self._timer.start()
 
@@ -119,12 +146,13 @@ class Leds:
 			time.sleep(0.1)
 
 
-	def _clear(self):
+	def clear(self):
 		"""
 		Used to clear the leds, turn them off. Stops any running animation and sets the leds to [0, 0, 0]
 		"""
 		self._clearAnimation()
 		self._pixels.fill(0)
+		self._pixels.brightness = 1.0
 
 
 	def _clearAnimation(self):
