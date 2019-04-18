@@ -21,11 +21,14 @@ class SnipsMyFlower:
 	_INTENT_WATER = 'hermes/intent/Psychokiller1888:water'
 	_INTENT_TELEMETRY = 'hermes/intent/Psychokiller1888:telemetry'
 	_INTENT_ANSWER_FLOWER = 'hermes/intent/Psychokiller1888:flowerNames'
+	_INTENT_WATER_FILLING = 'hermes/intent/Psychokiller1888:waterFilling'
 
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
 	_MQTT_TELEMETRY_REPORT = 'snipsmyflower/flowers/telemetryData'
 	_MQTT_DO_WATER = 'snipsmyflower/flowers/doWater'
 	_MQTT_PLANT_ALERT = 'snipsmyflower/flowers/alert'
+	_MQTT_REFILL_MODE = 'snipsmyflower/flowers/refillMode'
+	_MQTT_REFILL_FULL = 'snipsmyflower/flowers/refillFull'
 
 	_TELEMETRY_TABLE = """ CREATE TABLE IF NOT EXISTS telemetry (
 		id integer PRIMARY KEY,
@@ -186,6 +189,28 @@ class SnipsMyFlower:
 				return
 			self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('thankyou'))
 			self._mqtt.publish(topic=self._MQTT_DO_WATER, payload=json.dumps({'siteId': siteId}))
+
+
+		elif topic == self._INTENT_WATER_FILLING:
+			# User wants to fill the water tank
+			if siteId == 'default':
+				return
+
+			data = self._getTelemetryData(siteId, 1)
+			if len(data) <= 0:
+				self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('noData'))
+				return
+			elif data[0]['water'] >= 75:
+				self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('refillNotNeeded'))
+				return
+			else:
+				self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('refilling'))
+				self._mqtt.publish(topic=self._MQTT_REFILL_MODE, payload=json.dumps({'siteId': siteId}))
+
+		elif topic == self._MQTT_REFILL_FULL:
+			# Plant reports tank as full
+			self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('refillingDone'))
+			return
 
 
 	def onStop(self):
@@ -404,7 +429,9 @@ class SnipsMyFlower:
 			(self._MQTT_TELEMETRY_REPORT, 0),
 			(self._INTENT_WATER, 0),
 			(self._INTENT_TELEMETRY, 0),
-			(self._INTENT_ANSWER_FLOWER, 0)
+			(self._INTENT_ANSWER_FLOWER, 0),
+			(self._INTENT_WATER_FILLING, 0),
+			(self._MQTT_REFILL_FULL, 0)
 		])
 
 
@@ -432,7 +459,7 @@ class SnipsMyFlower:
 		return False
 
 
-	def _getTelemetryData(self, siteId, limit = -1):
+	def _getTelemetryData(self, siteId: int, limit: int = -1) -> list:
 		"""
 		Get telemetry data from database for the given site id
 		:param siteId: string
@@ -441,7 +468,7 @@ class SnipsMyFlower:
 		try:
 			con = self._sqlConnection()
 			if con is None:
-				return None
+				return []
 			if limit == -1:
 				rows = con.cursor().execute('SELECT * FROM telemetry WHERE siteId = ? ORDER BY timestamp DESC', [siteId]).fetchall()
 			else:
@@ -450,7 +477,7 @@ class SnipsMyFlower:
 			return rows
 		except sqlite3.Error as e:
 			print(e)
-			return None
+			return []
 
 
 	def _sqlFetch(self, query, replace):

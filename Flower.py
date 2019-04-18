@@ -29,6 +29,8 @@ class Flower:
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
 	_MQTT_TELEMETRY_REPORT = 'snipsmyflower/flowers/telemetryData'
 	_MQTT_PLANT_ALERT = 'snipsmyflower/flowers/alert'
+	_MQTT_REFILL_MODE = 'snipsmyflower/flowers/refillMode'
+	_MQTT_REFILL_FULL = 'snipsmyflower/flowers/refillFull'
 
 	def __init__(self):
 		"""
@@ -80,6 +82,7 @@ class Flower:
 		self._leds.onStart()
 		self._watering = threading.Timer(interval=5.0, function=self._pump, args=[False])
 		self._monitoring = None
+		self._refilling = None
 		self._onFiveMinute()
 
 
@@ -153,6 +156,10 @@ class Flower:
 			self._monitoring.cancel()
 			self._monitoring.join(timeout=2)
 
+		if self._refilling is not None and self._refilling.isAlive():
+			self._refilling.cancel()
+			self._refilling.join(timeout=2)
+
 		self._leds.onStop()
 		gpio.cleanup()
 
@@ -164,7 +171,8 @@ class Flower:
 		self._mqtt.subscribe([
 			(self._MQTT_GET_TELEMETRY, 0),
 			(self._MQTT_DO_WATER, 0),
-			(self._MQTT_PLANT_ALERT, 0)
+			(self._MQTT_PLANT_ALERT, 0),
+			(self._MQTT_REFILL_MODE, 0)
 		])
 
 
@@ -185,8 +193,12 @@ class Flower:
 		if topic == self._MQTT_DO_WATER:
 			self._doWater()
 		elif topic == self._MQTT_PLANT_ALERT:
-			print('alert of type: {} on {}'.format(payload['telemetry'], payload['limit']))
+			#print('alert of type: {} on {}'.format(payload['telemetry'], payload['limit']))
 			self._onAlert(payload['telemetry'], payload['limit'])
+		elif topic == self._MQTT_REFILL_MODE:
+			self._refilling = threading.Thread(target=self._refillingMode)
+			self._refilling.setDaemon(True)
+			self._refilling.start()
 
 
 	def _doWater(self):
@@ -200,6 +212,34 @@ class Flower:
 		self._watering = threading.Timer(interval=3.0, function=self._pump, args=[False])
 		self._watering.setDaemon(True)
 		self._watering.start()
+
+
+	def _refillingMode(self):
+		"""
+		User asked for tank refilling. We need to update the led indicator according to water level
+		and to alert the user when the level is full which will stop the refilling mode
+		"""
+		gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
+		refilling = True
+		while refilling:
+			if gpio.input(self._WATER_FULL_PIN):
+				self._leds.onDisplayMeter(100, [0, 0, 139], False)
+				self._mqtt.publish(topic=self._MQTT_REFILL_FULL, payload=json.dumps({'siteId': self._siteId}))
+				refilling = False
+			elif gpio.input(self._WATER_75_PIN):
+				self._leds.onDisplayMeter(75, [0, 0, 255], True)
+			elif gpio.input(self._WATER_50_PIN):
+				self._leds.onDisplayMeter(50, [106, 90, 205], True)
+			elif gpio.input(self._WATER_25_PIN):
+				self._leds.onDisplayMeter(25, [100, 149, 237], True)
+			elif gpio.input(self._WATER_EMPTY_PIN):
+				self._leds.onDisplayMeter(0, [135, 206, 250], True)
+			else:
+				self._leds.onDisplayMeter(0, [0, 0, 255], True)
+
+			time.sleep(0.25)
+
+		gpio.output(self._WATER_SENSOR_PIN, gpio.LOW)
 
 
 	def _onFiveMinute(self):

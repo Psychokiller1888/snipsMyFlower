@@ -110,5 +110,35 @@
 		"fr": [
 			"mon nivau d'eau"
 		]
+	},
+	"refilling":{
+		"en": [
+			"Ok, you can pour some water in my tank, not directly on me! Watch for the water level indicator!",
+			"Sure, you can now refill my tank, don't pour the water over me though! My indicator will tell you when to stop!"
+		],
+		"fr": [
+			"Ok, tu peux remplir mon réservoir, mais pas directement sur moi! Controle mon indicateur de niveau pour savoir quand arrêter!",
+			"Oui d'accord! Tu peux remplir maintenant, mais directement dans le réservoir! Mon indicateur lumineux te dira quand arrêter"
+		]
+	},
+	"refillingDone": {
+		"en": [
+			"Stop, my tank is full!",
+			"It's enough now, the tank is full"
+		],
+		"fr": [
+			"Stop, mon réservoir est plein!",
+			"ça suffit, le réservoir est plein!"
+		]
+	},
+	"refillNotNeeded": {
+		"en": [
+			"I don't need a refill yet",
+			"Not needed now, I have enough water"
+		],
+		"fr": [
+			"Je n'ai pas besoin de remplir pour le moment",
+			"Pas besoin pour le moment, j'ai assez d'eau"
+		]
 	}
 }
