@@ -55,12 +55,12 @@
 	},
 	"instantTimeReply": {
 		"en": [
-			"{0}, {1} was {2}{3}",
-			"{1} was {2}{3} {0}"
+			"{0}, {1} was {2} {3}",
+			"{1} was {2} {3} {0}"
 		],
 		"fr": [
-			"{0}, {1} était de {2}{3}",
-			"{1} était de {2}{3} {0}"
+			"{0}, {1} était de {2} {3}",
+			"{1} était de {2} {3} {0}"
 		]
 	},
 	"a week ago": {
@@ -69,6 +69,14 @@
 		],
 		"fr": [
 			"la semaine passée"
+		]
+	},
+	"yesterday": {
+		"en": [
+			"yesterday"
+		],
+		"fr": [
+			"hier"
 		]
 	},
 	"temperature": {
@@ -170,5 +178,22 @@
 			"Pardon mais je ne peux pas",
 			"Désolée, ce n'est pas possible maintenant"
 		]
+	},
+	"telemetry_alert": {
+		"en": [
+			"Hey! Hello? You gotta do something my {} is too {}!",
+			"Please, I need some help! My {} is too {}!"
+		],
+		"fr": [
+			"Hallo? Hey! Il faut faire quelque chose, ma {} est bien trop haut"
+		]
+	},
+	"high": {
+		"en": ["high"],
+		"fr": ["haute"]
+	},
+	"low": {
+		"en": ["low"],
+		"fr": ["basse"]
 	}
 }

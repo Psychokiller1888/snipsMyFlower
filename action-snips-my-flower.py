@@ -34,6 +34,7 @@ class SnipsMyFlower:
 	_MQTT_WATER_EMPTIED = 'snipsmyflower/flowers/waterEmptied'
 
 	_MQTT_REFUSED = 'snipsmyflower/flowers/refused'
+	_MQTT_ALERT_USER = 'snipsmyflower/flowers/alertUser'
 
 	_TELEMETRY_TABLE = """ CREATE TABLE IF NOT EXISTS telemetry (
 		id integer PRIMARY KEY,
@@ -64,14 +65,14 @@ class SnipsMyFlower:
 		],
 		'luminosity': [
 			4,
-			' lux'
+			'%'
 		],
 		'moisture': [
 			5,
 			'%'
 		],
 		'water': [
-			'6'
+			6,
 			''
 		]
 	}
@@ -104,6 +105,7 @@ class SnipsMyFlower:
 		"""
 		Whenever a message we are subscribed to enters, this function is called
 		"""
+		print(message.topic)
 		try:
 			payload = json.loads(message.payload.decode('utf-8'))
 		except:
@@ -130,15 +132,20 @@ class SnipsMyFlower:
 				self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('noData'))
 				return
 
+			item = self._TELEMETRY_TABLE_CORRESPONDANCE[slots['type']]
 			if 'when' not in slots:
 				# If the user did not provide a timeframe info, return him the actual data
-				self.endDialog(sessionId=sessionId, text=data[0][self._TELEMETRY_TABLE_CORRESPONDANCE[slots['type']][0]])
+				self.endDialog(sessionId=sessionId, text='{} {}'.format(item[0], item[1]))
 			else:
 				# User asked for a time specific data
-				when = self._getSlotInfo('when', payload)[0]
+				when = self._getSlotInfo('when', payload)
+				if len(when) <= 0:
+					self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('error'))
+					return
 
+				when = when[0]
 				if when.value['kind'] == 'TimeInterval':
-					pass
+					print('la')
 				elif when.value['kind'] == 'InstantTime':
 					# This is a precise point in time, we only fetch the value and return it without calculation
 					# Snips returns a non pythonic date, as the timezone %z doesn't take a ':' so we get rid of it or we'll fail getting the timestamp
@@ -164,8 +171,8 @@ class SnipsMyFlower:
 						self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('instantTimeReply').format(
 							self._i18n.getRandomText(slots['when'], lang='en'),
 							self._i18n.getRandomText(slots['type'], lang='en'),
-							data[0][self._TELEMETRY_TABLE_CORRESPONDANCE[slots['type']][0]],
-							self._TELEMETRY_TABLE_CORRESPONDANCE[slots['type']][1]
+							item[0],
+							item[1]
 						))
 
 					return
@@ -203,7 +210,6 @@ class SnipsMyFlower:
 				return
 
 			data = self._getTelemetryData(siteId, 1)
-			print(data)
 			if len(data) <= 0:
 				self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('noData'))
 				return
@@ -232,6 +238,13 @@ class SnipsMyFlower:
 			# The plant refused a command that was sent to her
 			self.say(text=self._i18n.getRandomText('refused'), client=siteId)
 
+		elif topic == self._MQTT_ALERT_USER:
+			# A plant has changed state to an alert state, let's warn the user
+			if payload['limit'] == 'max':
+				limit = self._i18n.getRandomText('high')
+			else:
+				limit = self._i18n.getRandomText('low')
+			self.say(text=self._i18n.getRandomText('telemetry_alert').format(payload['telemetry'], limit), client=siteId)
 
 
 	def onStop(self):
@@ -376,16 +389,20 @@ class SnipsMyFlower:
 				total = 0
 				length = 0
 				for row in dbData:
-					print(row)
 					length += 1
 					total += row[3]
 				average = total / length
 
 				if average < safeData['luminosity_min'] * 0.9:
 					self._alertPlant(payload['siteId'], 'luminosity', 'min')
+					return
 
 				elif average > safeData['luminosity_max'] * 1.1:
 					self._alertPlant(payload['siteId'], 'luminosity', 'max')
+					return
+
+				# Everything's clear!
+				self._alertPlant(payload['siteId'], 'all', 'ok')
 			except Exception as e:
 				print(e)
 
@@ -416,11 +433,16 @@ class SnipsMyFlower:
 		:return: list
 		"""
 		slots = []
-		if 'slots' in payload and slotName in payload['slots']:
-			for slot in payload['slots']:
-				if slot['slotName'] != slotName:
-					continue
-				slots.append(Slot(slot))
+		try:
+			if 'slots' in payload:
+				for slot in payload['slots']:
+					if slot['slotName'] != slotName:
+						continue
+					slots.append(Slot(slot))
+			return slots
+		except Exception as e:
+			print(e)
+
 		return slots
 
 
@@ -475,7 +497,8 @@ class SnipsMyFlower:
 			(self._MQTT_REFILL_FULL, 0),
 			(self._INTENT_EMPTY_WATER, 0),
 			(self._MQTT_WATER_EMPTIED, 0),
-			(self._MQTT_REFUSED, 0)
+			(self._MQTT_REFUSED, 0),
+			(self._MQTT_ALERT_USER, 0)
 		])
 
 

@@ -140,7 +140,7 @@ class Leds:
 				direction = -1
 			elif bri < 0.2:
 				direction = 1
-			bri += direction * 0.02
+			bri += direction * 0.04
 			bri = round(bri, 2)
 			self._pixels.brightness = bri
 			time.sleep(0.1)
