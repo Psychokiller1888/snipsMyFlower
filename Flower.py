@@ -417,14 +417,14 @@ class Flower:
 				self._leds.onDisplayMeter(percentage=100, color=[255, 0, 0], autoAlert=True)
 		elif sensor == 'luminosity':
 			if limit == 'min':
-				self._leds.onDisplayMeter(percentage=100, color=[0, 51, 51], autoAlert=True)
+				self._leds.onDisplayMeter(percentage=100, color=[0, 51, 51], brightness=0.3, autoAlert=True)
 			else:
 				self._leds.onDisplayMeter(percentage=100, color=[204, 255, 255], autoAlert=True)
 		elif sensor == 'moisture':
 			if limit == 'min':
 				self._leds.onDisplayMeter(percentage=100, color=[255, 255, 0], autoAlert=True)
 			else:
-				self._leds.onDisplayMeter(percentage=100, color=[0, 25, 0], autoAlert=True)
+				self._leds.onDisplayMeter(percentage=100, color=[0, 25, 0], brightness=0.3, autoAlert=True)
 
 
 	def _pump(self, on=True):

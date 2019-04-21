@@ -368,7 +368,7 @@ class SnipsMyFlower:
 					return
 
 				# But not too humid?
-				elif data['moisture'] > safeData['moisture_max'] * 1.1:
+				if data['moisture'] > safeData['moisture_max'] * 1.1:
 					self._alertPlant(payload['siteId'], 'moisture', 'max')
 					return
 

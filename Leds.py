@@ -63,14 +63,14 @@ class Leds:
 		self._put(self._startAnimation)
 
 
-	def onDisplayMeter(self, percentage, color=None, autoAlert=False):
+	def onDisplayMeter(self, percentage, color=None, brightness=1, autoAlert=False):
 		"""
 		Playing meter animation
 		"""
 		if color is None:
 			color = [0, 0, 0]
 
-		self._put(lambda: self._displayMeter(color, percentage, autoAlert))
+		self._put(lambda: self._displayMeter(color, percentage, brightness, autoAlert))
 
 
 	def onDisplayLevel(self, numleds, color=None):
@@ -111,7 +111,7 @@ class Leds:
 			i += 1
 
 
-	def _displayMeter(self, color, percentage, autoAlert=False):
+	def _displayMeter(self, color, percentage, brightness=1, autoAlert=False):
 		"""
 		Gradually fills the pixels with the given color up to the given percentage and then slowly breaths the leds for 10 seconds
 		:param color: RGB array
@@ -125,25 +125,35 @@ class Leds:
 		while i < ledsToLight:
 			self._pixels[i] = color
 			i += 1
-			time.sleep(0.25)
+			if autoAlert:
+				time.sleep(0.1)
+			else:
+				time.sleep(0.25)
 
 		if not autoAlert:
 			self._timer = threading.Timer(interval=10, function=self.clear)
 			self._timer.setDaemon(True)
 			self._timer.start()
 
-		bri = 1.0
+		bri = brightness
+		self._pixels.brightness = bri
 		direction = -1
+
+		# If we want to have a constant speed on the animation whatever brightness we have, we need to calculate
+		# the speed
+		steps = round(bri / 0.04)
+		sleep = round(2.5 / steps, 3) #If only one step, the sleep time would be 2.5 seconds
+
 		self._animating.set()
 		while self._animating.isSet():
-			if bri > 0.9:
+			if bri > brightness:
 				direction = -1
 			elif bri < 0.2:
 				direction = 1
 			bri += direction * 0.04
 			bri = round(bri, 2)
 			self._pixels.brightness = bri
-			time.sleep(0.1)
+			time.sleep(sleep)
 
 
 	def clear(self):
