@@ -195,5 +195,77 @@
 	"low": {
 		"en": ["low"],
 		"fr": ["basse"]
+	},
+	"everythingOk": {
+		"en": [
+			"What? Everything's fine thank you!",
+			"Sorry, I'm fine, no problem"
+		],
+		"fr": [
+			"Pardon? Tout va bien, merci!"
+		]
+	},
+	"alertState_3": {
+		"en": [
+			"I'm too hot!",
+			"I'm burning, help!"
+		],
+		"fr": [
+			"J'ai trop chaud!"
+		]
+	},
+	"alertState_4": {
+		"en": [
+			"It's way too cold...",
+			"I'm freezing, help!"
+		],
+		"fr": [
+			"J'ai trop froid!"
+		]
+	},
+	"alertState_5": {
+		"en": [
+			"Way... too... much water...",
+			"I'm drawning, too much water"
+		],
+		"fr": [
+			"Je me noie, beaucoup trop d'eau"
+		]
+	},
+	"alertState_6": {
+		"en": [
+			"I'm so thirsty",
+			"Give me some water please, I'm so thirsty"
+		],
+		"fr": [
+			"J'ai soif"
+		]
+	},
+	"alertState_7": {
+		"en": [
+			"It's too dark, I need light",
+			"I'm in need of light"
+		],
+		"fr": [
+			"J'ai besoin de plus de lumière"
+		]
+	},
+	"alertState_8": {
+		"en": [
+			"I get way too much light, I need some darkness also",
+			"It's too bright, I need darkness sometimes"
+		],
+		"fr": [
+			"Il y a trop de lumière"
+		]
+	},
+	"alertState_9": {
+		"en": [
+			"I'm out of water",
+			"My tank is empty"
+		],
+		"fr": [
+			"Je n'ai plus d'eau en réserve"
+		]
 	}
 }

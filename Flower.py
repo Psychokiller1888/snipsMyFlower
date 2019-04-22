@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from Chirp import Chirp
-from enum import Enum
+from FlowerStates import State
 import json
 from Leds import Leds
 import logging
@@ -207,6 +207,9 @@ class Flower:
 				self._doWater()
 
 		elif topic == self._MQTT_PLANT_ALERT:
+			if self._state == State.EMPTYING or self._state == State.FILLING:
+				return
+
 			telemetry = payload['telemetry']
 			limit = payload['limit']
 			if telemetry == 'temperature':
@@ -222,7 +225,7 @@ class Flower:
 				if limit == 'min':
 					if self._state != State.THIRSTY:
 						self._state = State.THIRSTY
-						#self._alertUser(telemetry, limit)
+						#self._alertUser(telemetry, limit) # Don't alert the user, but do pump some water on the plant
 						self._doWater()
 				else:
 					if self._state != State.DRAWNED:
@@ -298,19 +301,21 @@ class Flower:
 		self._state = State.FILLING
 		was = 0
 		while self._state == State.FILLING:
-			if gpio.input(self._WATER_FULL_PIN):
+			if gpio.input(self._WATER_75_PIN):
 				if was != 100:
 					was = 100
+					self._leds.onDisplayLevel(4, [0, 0, 255])
+					time.sleep(2)
 					self._leds.onDisplayLevel(5, [0, 0, 255])
 					self._mqtt.publish(topic=self._MQTT_REFILL_FULL, payload=json.dumps({'siteId': self._siteId}))
 					self._onFiveMinute() # Manually trigger onFiveMinutes to send data to the main unit
 					time.sleep(5)
 					self._leds.clear()
 					self._state = State.OK
-			elif gpio.input(self._WATER_75_PIN):
-				if was != 75:
-					was = 75
-					self._leds.onDisplayLevel(4, [0, 0, 255])
+			#elif gpio.input(self._WATER_75_PIN):
+			#	if was != 75:
+			#		was = 75
+			#		self._leds.onDisplayLevel(4, [0, 0, 255])
 			elif gpio.input(self._WATER_50_PIN):
 				if was != 50:
 					was = 50
@@ -359,10 +364,10 @@ class Flower:
 				if was != 25:
 					was = 25
 					self._leds.onDisplayLevel(2, [0, 0, 255])
-			elif gpio.input(self._WATER_EMPTY_PIN):
-				if was != 0:
-					was = 0
-					self._leds.onDisplayLevel(1, [0, 0, 255])
+			#elif gpio.input(self._WATER_EMPTY_PIN):
+			#	if was != 0:
+			#		was = 0
+			#		self._leds.onDisplayLevel(1, [0, 0, 255])
 			else:
 				if was != -1:
 					was = -1
@@ -447,16 +452,13 @@ class Flower:
 		"""
 		data = dict({'siteId': self._siteId})
 		try: # Chirp sometimes crashes, in which case we simply recall the telemetry query
-			self._moistureSensor.wake_up()
+			#self._moistureSensor.wake_up()
 			self._moistureSensor.trigger()
 			time.sleep(1)
 			moisture = self._moistureSensor.moist_percent
 			light = self._moistureSensor.light
 			temperature = self._moistureSensor.temp
-			self._moistureSensor.sleep()
-			# moisture = 15
-			# temperature = 20
-			# light = 2356
+			#self._moistureSensor.sleep()
 			if moisture > 100 or moisture < 0 or temperature > 100:
 				raise Exception('Impossible chirp sensor values')
 			else:
@@ -486,18 +488,3 @@ class Flower:
 		print('Moisture: {}% temperature: {:.1f}°C light: {} lux water: {}'.format(moisture, temperature, light, data['water']))
 		return data
 
-
-class State(Enum):
-	BOOTING = 0
-	READY = 1
-	OK = 2
-	HOT = 3
-	COLD = 4
-	DRAWNED = 5
-	THIRSTY = 6
-	TOO_DARK = 7
-	TOO_BRIGHT = 8
-	OUT_OF_WATER = 9
-	WATERING = 10
-	EMPTYING = 11
-	FILLING = 12

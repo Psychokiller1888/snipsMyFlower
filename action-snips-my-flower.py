@@ -3,7 +3,7 @@
 
 import datetime
 import sqlite3
-
+from FlowerStates import State
 from I18n import I18n
 import json
 import os
@@ -23,6 +23,7 @@ class SnipsMyFlower:
 	_INTENT_ANSWER_FLOWER = 'hermes/intent/Psychokiller1888:flowerNames'
 	_INTENT_WATER_FILLING = 'hermes/intent/Psychokiller1888:waterFilling'
 	_INTENT_EMPTY_WATER = 'hermes/intent/Psychokiller1888:emptyWater'
+	_INTENT_WHATSUP = 'hermes/intent/Psychokiller1888:whatsup'
 
 	_MQTT_GET_TELEMETRY = 'snipsmyflower/flowers/getTelemetry'
 	_MQTT_TELEMETRY_REPORT = 'snipsmyflower/flowers/telemetryData'
@@ -99,6 +100,7 @@ class SnipsMyFlower:
 			sys.exit()
 
 		self._plantsData = self._loadPlantsData()
+		self._plantStates = dict()
 
 
 	def _onMessage(self, client, userdata, message):
@@ -246,6 +248,12 @@ class SnipsMyFlower:
 				limit = self._i18n.getRandomText('low')
 			self.say(text=self._i18n.getRandomText('telemetry_alert').format(payload['telemetry'], limit), client=siteId)
 
+		elif topic == self._INTENT_WHATSUP:
+			if siteId not in self._plantStates or self._plantStates[siteId] == State.OK:
+				self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('everythingOk'))
+				return
+			self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('alertState_{}'.format(self._plantStates[siteId].value)))
+
 
 	def onStop(self):
 		"""
@@ -360,26 +368,31 @@ class SnipsMyFlower:
 				#Do we still have water?
 				if data['water'] <= 0:
 					self._alertPlant(payload['siteId'], 'water', 'min')
+					self._plantStates[payload['siteId']] = State.OUT_OF_WATER
 					return
 
 				# Is the soil humid enough?
 				elif data['moisture'] < safeData['moisture_min'] * 0.9:
 					self._alertPlant(payload['siteId'], 'moisture', 'min')
+					self._plantStates[payload['siteId']] = State.THIRSTY
 					return
 
 				# But not too humid?
 				if data['moisture'] > safeData['moisture_max'] * 1.1:
 					self._alertPlant(payload['siteId'], 'moisture', 'max')
+					self._plantStates[payload['siteId']] = State.DRAWNED
 					return
 
 				# How about the temperature, too cold?
 				elif data['temperature'] < safeData['temperature_min'] * 0.9:
 					self._alertPlant(payload['siteId'], 'temperature', 'min')
+					self._plantStates[payload['siteId']] = State.COLD
 					return
 
 				# Or too hot?
 				elif data['temperature'] > safeData['temperature_max'] * 1.1:
 					self._alertPlant(payload['siteId'], 'temperature', 'max')
+					self._plantStates[payload['siteId']] = State.HOT
 					return
 
 				# For the luminosity, we need to check upon an interval, as of course at night it will be too dark.
@@ -395,19 +408,46 @@ class SnipsMyFlower:
 
 				if average < safeData['luminosity_min'] * 0.9:
 					self._alertPlant(payload['siteId'], 'luminosity', 'min')
+					self._plantStates[payload['siteId']] = State.TOO_DARK
 					return
 
 				elif average > safeData['luminosity_max'] * 1.1:
 					self._alertPlant(payload['siteId'], 'luminosity', 'max')
+					self._plantStates[payload['siteId']] = State.TOO_BRIGHT
 					return
 
 				# Everything's clear!
+				self._plantStates[payload['siteId']] = State.OK
 				self._alertPlant(payload['siteId'], 'all', 'ok')
 			except Exception as e:
 				print(e)
 
 
 	def _alertPlant(self, siteId, telemetry, limit):
+		# if telemetry != 'all' and limit != 'ok':
+		# 	self._mqtt.publish(topic='hermes/dialogueManager/configure', payload=json.dumps(
+		# 		{
+		# 			'siteId': siteId,
+		# 			'intents': [
+		# 				{
+		# 					'intentId': self._INTENT_WHATSUP,
+		# 					'enable': True
+		# 				}
+		# 			]
+		# 		}
+		# 	))
+		# else:
+		# 	self._mqtt.publish(topic='hermes/dialogueManager/configure', payload=json.dumps(
+		# 		{
+		# 			'siteId': siteId,
+		# 			'intents': [
+		# 				{
+		# 					'intentId': self._INTENT_WHATSUP,
+		# 					'enable'  : False
+		# 				}
+		# 			]
+		# 		}
+		# 	))
 		self._mqtt.publish(topic=self._MQTT_PLANT_ALERT, payload=json.dumps({'siteId': siteId, 'telemetry': telemetry, 'limit': limit}))
 
 
@@ -498,7 +538,8 @@ class SnipsMyFlower:
 			(self._INTENT_EMPTY_WATER, 0),
 			(self._MQTT_WATER_EMPTIED, 0),
 			(self._MQTT_REFUSED, 0),
-			(self._MQTT_ALERT_USER, 0)
+			(self._MQTT_ALERT_USER, 0),
+			(self._INTENT_WHATSUP, 0)
 		])
 
 
