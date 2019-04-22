@@ -264,6 +264,7 @@ class SnipsMyFlower:
 		self._mqtt.disconnect()
 
 
+
 	def endDialog(self, sessionId, text=None):
 		"""
 		End a session by speaking the provided string if any
