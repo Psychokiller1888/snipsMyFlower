@@ -1,12 +1,22 @@
 {
 	"cactus": {
-		"moisture_min": 10,
-		"moisture_max": 0,
-		"temperature_min": 10,
-		"temperature_max": 20,
-		"humidity_max": 75,
+		"moisture_min": 3,
+		"moisture_max": 10,
+		"temperature_min": 20,
+		"temperature_max": 60,
+		"humidity_max": 50,
 		"humidity_min": 10,
-		"luminosity_min": 10,
-		"luminosity_max": 1
+		"luminosity_min": 25,
+		"luminosity_max": 100
+	},
+	"dracaena_marginata": {
+		"moisture_min": 20,
+		"moisture_max": 30,
+		"temperature_min": 10,
+		"temperature_max": 35,
+		"humidity_max": 55,
+		"humidity_min": 35,
+		"luminosity_min": 40,
+		"luminosity_max": 70
 	}
 }
