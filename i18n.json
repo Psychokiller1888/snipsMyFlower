@@ -20,6 +20,10 @@
 			"Pardon? Je ne suis pas sûre d'avoir compris"
 		]
 	},
+	"notImplemented": {
+		"en": ["Unfortunately this is not yet implemented due to some weirdness in time interval slot type. Or Psycho did not understand something..."],
+		"fr": ["Malheureusement cette fonction n'est pas encore implentée à cause d'une bizarrerie dans le slot time interval. Ou alors c'est Psycho qui a pas compris..."]
+	},
 	"noData": {
 		"en": [
 			"I'm sorry but it seems I don't have any recorded data",

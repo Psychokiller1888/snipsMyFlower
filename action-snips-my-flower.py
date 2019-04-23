@@ -150,7 +150,9 @@ class SnipsMyFlower:
 
 				when = when[0]
 				if when.value['kind'] == 'TimeInterval':
-					print('la')
+					print('Unfortunately this is not yet implemented')
+					self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('notImplemented'))
+					return
 				elif when.value['kind'] == 'InstantTime':
 					# This is a precise point in time, we only fetch the value and return it without calculation
 					# Snips returns a non pythonic date, as the timezone %z doesn't take a ':' so we get rid of it or we'll fail getting the timestamp
@@ -244,7 +246,6 @@ class SnipsMyFlower:
 			return
 
 		elif topic == self._MQTT_REFUSED:
-			print('here')
 			# The plant refused a command that was sent to her
 			self.say(text=self._i18n.getRandomText('refused'), client=siteId)
 

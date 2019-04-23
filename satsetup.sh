@@ -6,6 +6,22 @@ if [ "$EUID" -ne 0 ]
   exit
 fi
 
+if [ -z "$1" ]; then
+    echo "No version supplied"
+    exit
+else
+    VERSION=$1
+fi
+
+USER=$(logname)
+systemctl is-active -q snipsFlower && systemctl stop snipsFlower
+
+if [ ! -f /etc/systemd/system/snipsFlower.service ]; then
+    cp snipsFlower.service /etc/systemd/system
+fi
+
+sed -i -e "s/snipsFlower[0-9\.v_]*/snipsFlower_${VERSION}/" /etc/systemd/system/snipsFlower.service
+
 echo "dtparam=i2c1_baudrate=30000" >> /boot/config.txt
 
 pip3 install virtualenv
@@ -25,3 +41,7 @@ fi
 
 . $VENV/bin/activate
 pip3 install -r sat_requirements.txt
+
+systemctl daemon-reload
+systemctl enable snipsFlower
+systemctl start snipsFlower

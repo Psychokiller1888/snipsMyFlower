@@ -203,13 +203,12 @@ class Flower:
 		topic = message.topic
 
 		if topic == self._MQTT_DO_WATER:
-			if self._state == State.FILLING or self._state == State.EMPTYING or self._state == State.WATERING:
+			if self._state == State.FILLING or self._state == State.EMPTYING or self._state == State.WATERING or self._watering.isAlive():
 				return
 
 			self._doWater()
 
 		elif topic == self._MQTT_PLANT_ALERT:
-			print(self._state)
 			if self._state == State.EMPTYING or self._state == State.FILLING:
 				print('no alert')
 				return
@@ -253,7 +252,7 @@ class Flower:
 			self._onAlert(telemetry, limit)
 
 		elif topic == self._MQTT_REFILL_MODE:
-			if self._state == State.FILLING or self._state == State.EMPTYING or self._state == State.WATERING:
+			if self._state == State.FILLING or self._state == State.EMPTYING or self._state == State.WATERING or self._watering.isAlive():
 				self._mqtt.publish(topic=self._MQTT_REFUSED, payload=json.dumps({'siteId': self._siteId}))
 				return
 
@@ -262,7 +261,7 @@ class Flower:
 			self._refilling.start()
 
 		elif topic == self._MQTT_EMPTY_WATER:
-			if self._state == State.FILLING or self._state == State.EMPTYING or self._state == State.WATERING:
+			if self._state == State.FILLING or self._state == State.EMPTYING or self._state == State.WATERING or self._watering.isAlive():
 				self._mqtt.publish(topic=self._MQTT_REFUSED, payload=json.dumps({'siteId': self._siteId}))
 				return
 
@@ -397,8 +396,7 @@ class Flower:
 		if self._monitoring is not None and self._monitoring.isAlive():
 			self._monitoring.cancel()
 
-		# self._monitoring = threading.Timer(interval=300, function=self._onFiveMinute)
-		self._monitoring = threading.Timer(interval=30, function=self._onFiveMinute) #TODO remove me!!
+		self._monitoring = threading.Timer(interval=300, function=self._onFiveMinute)
 		self._monitoring.setDaemon(True)
 		self._monitoring.start()
 
@@ -444,10 +442,10 @@ class Flower:
 		:param on: boolean
 		"""
 		if on:
-			self._state = State.WATERING
+			#self._state = State.WATERING
 			gpio.output(self._PUMP_PIN, gpio.HIGH)
 		else:
-			self._state = State.OK
+			#self._state = State.OK
 			gpio.output(self._PUMP_PIN, gpio.LOW)
 
 

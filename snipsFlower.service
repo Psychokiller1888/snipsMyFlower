@@ -1,0 +1,16 @@
+[Unit]
+Description=Snips Flower satellite service
+Wants=network-online.target mosquitto.service snips-audio-server.service
+After=network-online.target mosquitto.service snips-audio-server.service
+
+[Service]
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/python3 satellite.py
+WorkingDirectory=/home/pi/snipsMyFlower
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
