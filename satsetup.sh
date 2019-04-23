@@ -14,13 +14,21 @@ else
 fi
 
 USER=$(logname)
-systemctl is-active -q snipsFlower && systemctl stop snipsFlower
+systemctl is-active -q snipsMyFlower && systemctl stop snipsMyFlower
 
-if [ ! -f /etc/systemd/system/snipsFlower.service ]; then
-    cp snipsFlower.service /etc/systemd/system
+if [ ! -f /etc/systemd/system/snipsMyFlower.service ]; then
+    cp snipsMyFlower.service /etc/systemd/system
 fi
 
-sed -i -e "s/snipsFlower[0-9\.v_]*/snipsFlower_${VERSION}/" /etc/systemd/system/snipsFlower.service
+sed -i -e "s/snipsMyFlower[0-9\.v_]*/snipsMyFlower_${VERSION}/" /etc/systemd/system/snipsMyFlower.service
+
+rm action-snips-my-flower.py
+rm config.default
+rm i18n.json
+rm i18n.py
+rm plantsData.json
+rm requirements.txt
+rm setup.sh
 
 echo "dtparam=i2c1_baudrate=30000" >> /boot/config.txt
 
@@ -43,5 +51,5 @@ fi
 pip3 install -r sat_requirements.txt
 
 systemctl daemon-reload
-systemctl enable snipsFlower
-systemctl start snipsFlower
+systemctl enable snipsMyFlower
+systemctl start snipsMyFlower
