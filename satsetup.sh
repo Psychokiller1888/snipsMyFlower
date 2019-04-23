@@ -20,7 +20,7 @@ if [ ! -f /etc/systemd/system/snipsMyFlower.service ]; then
     cp snipsMyFlower.service /etc/systemd/system
 fi
 
-sed -i -e "s/snipsMyFlower[0-9\.v_]*/snipsMyFlower_${VERSION}/" /etc/systemd/system/snipsMyFlower.service
+sed -i -e "s/snipsMyFlower[0-9\.av_]*/snipsMyFlower_${VERSION}/" /etc/systemd/system/snipsMyFlower.service
 
 rm /home/pi/snipsMyFlower_download.sh
 rm action-snips-my-flower.py
