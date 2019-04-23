@@ -25,7 +25,7 @@ sed -i -e "s/snipsMyFlower[0-9\.v_]*/snipsMyFlower_${VERSION}/" /etc/systemd/sys
 rm action-snips-my-flower.py
 rm config.default
 rm i18n.json
-rm i18n.py
+rm I18n.py
 rm plantsData.json
 rm requirements.txt
 rm setup.sh
