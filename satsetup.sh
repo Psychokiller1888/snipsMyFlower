@@ -30,11 +30,11 @@ rm I18n.py
 rm plantsData.json
 rm requirements.txt
 rm setup.sh
+mkdir logs
 
-echo "dtparam=i2c1_baudrate=30000" >> /boot/config.txt
+grep -qF 'dtparam=i2c1_baudrate=30000' '/boot/config.txt' || echo 'dtparam=i2c1_baudrate=30000' | sudo tee --append '/boot/config.txt'
 
 pip3 install virtualenv
-mkdir logs
 
 if [ ! -d "$VENV" ]
 then
