@@ -1,6 +1,6 @@
 {
 	"cactus": {
-		"moisture_min": 3,
+		"moisture_min": 8,
 		"moisture_max": 10,
 		"temperature_min": 20,
 		"temperature_max": 60,

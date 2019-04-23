@@ -204,10 +204,14 @@ class Flower:
 
 		if topic == self._MQTT_DO_WATER:
 			if self._state == State.FILLING or self._state == State.EMPTYING or self._state == State.WATERING:
-				self._doWater()
+				return
+
+			self._doWater()
 
 		elif topic == self._MQTT_PLANT_ALERT:
+			print(self._state)
 			if self._state == State.EMPTYING or self._state == State.FILLING:
+				print('no alert')
 				return
 
 			telemetry = payload['telemetry']
@@ -223,10 +227,8 @@ class Flower:
 						self._alertUser(telemetry, limit)
 			elif telemetry == 'moisture':
 				if limit == 'min':
-					if self._state != State.THIRSTY:
-						self._state = State.THIRSTY
-						#self._alertUser(telemetry, limit) # Don't alert the user, but do pump some water on the plant
-						self._doWater()
+					self._state = State.THIRSTY
+					self._doWater()
 				else:
 					if self._state != State.DRAWNED:
 						self._state = State.DRAWNED
@@ -276,6 +278,10 @@ class Flower:
 		if self._watering.isAlive():
 			return
 
+		if self._state == State.OUT_OF_WATER:
+			self._alertUser('water', 'min')
+			return
+
 		self._pump()
 		self._watering = threading.Timer(interval=3.0, function=self._pump, args=[False])
 		self._watering.setDaemon(True)
@@ -296,22 +302,20 @@ class Flower:
 		User asked for tank refilling. We need to update the led indicator according to water level
 		and to alert the user when the level is full which will stop the refilling mode
 		"""
+		self._state = State.FILLING
 		self._leds.clear()
 		gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
-		self._state = State.FILLING
 		was = 0
 		while self._state == State.FILLING:
 			if gpio.input(self._WATER_75_PIN):
-				if was != 100:
-					was = 100
-					self._leds.onDisplayLevel(4, [0, 0, 255])
-					time.sleep(2)
-					self._leds.onDisplayLevel(5, [0, 0, 255])
-					self._mqtt.publish(topic=self._MQTT_REFILL_FULL, payload=json.dumps({'siteId': self._siteId}))
-					self._onFiveMinute() # Manually trigger onFiveMinutes to send data to the main unit
-					time.sleep(5)
-					self._leds.clear()
-					self._state = State.OK
+				self._state = State.OK
+				self._leds.onDisplayLevel(4, [0, 0, 255])
+				time.sleep(2)
+				self._leds.onDisplayLevel(5, [0, 0, 255])
+				self._mqtt.publish(topic=self._MQTT_REFILL_FULL, payload=json.dumps({'siteId': self._siteId}))
+				self._onFiveMinute() # Manually trigger onFiveMinutes to send data to the main unit
+				time.sleep(5)
+				self._leds.clear()
 			#elif gpio.input(self._WATER_75_PIN):
 			#	if was != 75:
 			#		was = 75
@@ -342,10 +346,10 @@ class Flower:
 		"""
 		User asked to empty the tank. Let's run the pump for as long as the sensor returns not -1
 		"""
+		self._state = State.EMPTYING
 		self._leds.clear()
 		gpio.output(self._WATER_SENSOR_PIN, gpio.HIGH)
 		self._pump()
-		self._state = State.EMPTYING
 		was = 0
 		while self._state == State.EMPTYING:
 			if gpio.input(self._WATER_FULL_PIN):
@@ -375,10 +379,10 @@ class Flower:
 					time.sleep(5)
 					self._leds.onDisplayLevel(0, [0, 0, 255])
 					time.sleep(10)
-					self._mqtt.publish(topic=self._MQTT_WATER_EMPTIED, payload=json.dumps({'siteId': self._siteId}))
-					self._onFiveMinute()  # Manually trigger onFiveMinutes to send data to the main unit
 					self._pump(False)
-					self._state = State.OK
+					self._mqtt.publish(topic=self._MQTT_WATER_EMPTIED, payload=json.dumps({'siteId': self._siteId}))
+					self._state = State.OUT_OF_WATER
+					self._onFiveMinute()  # Manually trigger onFiveMinutes to send data to the main unit
 
 			time.sleep(0.25)
 
@@ -390,14 +394,16 @@ class Flower:
 		Called every 5 minutes, this method does ask for the latest sensor data and sends them to the main unit
 		It also runs checks on the data to alert the user if needed
 		"""
-		#self._monitoring = threading.Timer(interval=300, function=self._onFiveMinute)
 		if self._monitoring is not None and self._monitoring.isAlive():
 			self._monitoring.cancel()
 
+		# self._monitoring = threading.Timer(interval=300, function=self._onFiveMinute)
 		self._monitoring = threading.Timer(interval=30, function=self._onFiveMinute) #TODO remove me!!
 		self._monitoring.setDaemon(True)
 		self._monitoring.start()
-		self._sendData()
+
+		if self._state != State.EMPTYING and self._state != State.FILLING:
+			self._sendData()
 
 
 	def _sendData(self):

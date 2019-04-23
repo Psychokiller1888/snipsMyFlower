@@ -107,7 +107,6 @@ class SnipsMyFlower:
 		"""
 		Whenever a message we are subscribed to enters, this function is called
 		"""
-		print(message.topic)
 		try:
 			payload = json.loads(message.payload.decode('utf-8'))
 		except:
@@ -120,6 +119,10 @@ class SnipsMyFlower:
 			siteId = payload['siteId']
 		if 'sessionId' in payload:
 			sessionId = payload['sessionId']
+
+		if 'intent' in payload and payload['intent']['confidenceScore'] < 0.4:
+			self.continueSession(sessionId=sessionId, text=self._i18n.getRandomText('notUnderstood'))
+			return
 
 		slots = self._parseSlots(payload)
 
@@ -225,18 +228,23 @@ class SnipsMyFlower:
 		elif topic == self._MQTT_REFILL_FULL:
 			# Plant reports tank as full
 			self.say(text=self._i18n.getRandomText('refillingDone'), client=siteId)
+			self._checkData(payload)
 			return
 
 		elif topic == self._INTENT_EMPTY_WATER:
 			# User wants to empty the water tank
 			self.endDialog(sessionId=sessionId, text=self._i18n.getRandomText('confirm'))
 			self._mqtt.publish(topic=self._MQTT_EMPTY_WATER, payload=json.dumps({'siteId': siteId}))
+			return
 
 		elif topic == self._MQTT_WATER_EMPTIED:
 			# Plant reports as emptied
 			self.say(text=self._i18n.getRandomText('waterEmptied'), client=siteId)
+			self._checkData(payload)
+			return
 
 		elif topic == self._MQTT_REFUSED:
+			print('here')
 			# The plant refused a command that was sent to her
 			self.say(text=self._i18n.getRandomText('refused'), client=siteId)
 
@@ -282,7 +290,7 @@ class SnipsMyFlower:
 			}))
 
 
-	def continueSession(self, sessionId, text, customData, intentFilter=None):
+	def continueSession(self, sessionId, text, customData=None, intentFilter=None):
 		"""
 		Continues the given session by speaking the provided string
 		:param sessionId: integer, session to continue
@@ -290,6 +298,9 @@ class SnipsMyFlower:
 		:param customData: dict
 		:param intentFilter: list
 		"""
+		if customData is None:
+			customData = {}
+
 		jsonDict = {
 			'sessionId'              : sessionId,
 			'text'                   : text,
