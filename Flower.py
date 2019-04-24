@@ -210,7 +210,6 @@ class Flower:
 
 		elif topic == self._MQTT_PLANT_ALERT:
 			if self._state == State.EMPTYING or self._state == State.FILLING:
-				print('no alert')
 				return
 
 			telemetry = payload['telemetry']
@@ -489,6 +488,6 @@ class Flower:
 			data['water'] = -1
 		gpio.output(self._WATER_SENSOR_PIN, gpio.LOW)
 
-		print('Moisture: {}% temperature: {:.1f}°C light: {} lux water: {}'.format(moisture, temperature, light, data['water']))
+		#print('Moisture: {}% temperature: {:.1f}°C light: {} lux water: {}'.format(moisture, temperature, light, data['water']))
 		return data
 
