@@ -15,25 +15,28 @@ fi
 
 USER=$(logname)
 
+echo "Welcome in this automated Snips My Flower satellite installer!"
+echo ""
+
 echo "Please enter the name of this plant/flower"
-read -p 'Plant/flower name:' plant
+read -p 'Plant/flower name: ' plant
 
 plant=${plant// /_}
 
 echo "Please enter the ip adress or the hostname of your main snips unit"
-read -p 'IP or hostname:' ip
+read -p 'IP or hostname: ' ip
 
 apt-get update
-apt-get dist-upgrade
 apt-get install -y git
 apt-get install -y dirmngr
 bash -c  'echo "deb https://raspbian.snips.ai/$(lsb_release -cs) stable main" > /etc/apt/sources.list.d/snips.list'
-apt-key adv --keyserver pgp.surfnet.nl --recv-keys D4F50CDCA10A2849
+apt-key adv --keyserver gpg.mozilla.org --recv-keys D4F50CDCA10A2849
 apt-get update
 apt-get install -y snips-audio-server
 git clone https://github.com/respeaker/seeed-voicecard.git
 cd seeed-voicecard
-sudo ./install.sh
+#./install.sh
+echo "^^^^ No, don't reboot it, that's seeed respeaker installer telling you too, I will take care of that in a while ^^^^"
 cd ..
 
 rm /usr/bin/seeed-voicecard
@@ -52,7 +55,7 @@ pcm.!default {
 EOL
 
 sed -i -e 's/\# mqtt = "localhost:1883"/mqtt = "'${ip}':1883"/' /etc/snips.toml
-sed -i -e 's/\# audio = ["+@mqtt"]/audio = ["'${plant}'@mqtt"]/' /etc/snips.toml
+sed -i -e 's/\# bind = \["default@mqtt"\]/bind = \["'${plant}'@mqtt"\]/' /etc/snips.toml
 
 systemctl is-active -q snipsMyFlower && systemctl stop snipsMyFlower
 
@@ -72,7 +75,7 @@ rm requirements.txt
 rm setup.sh
 mkdir logs
 
-grep -qF 'dtparam=i2c1_baudrate=30000' '/boot/config.txt' || echo 'dtparam=i2c1_baudrate=30000' | sudo tee --append '/boot/config.txt'
+grep -qF 'dtparam=i2c1_baudrate=30000' '/boot/config.txt' || echo 'dtparam=i2c1_baudrate=30000' | tee --append '/boot/config.txt'
 
 pip3 install virtualenv
 
@@ -93,5 +96,8 @@ pip3 install -r sat_requirements.txt
 
 systemctl daemon-reload
 systemctl enable snipsMyFlower
+systemctl restart snips-audio-server
 
+echo "Rebooting..."
+sleep 3
 reboot
