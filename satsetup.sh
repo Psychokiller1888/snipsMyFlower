@@ -15,15 +15,16 @@ fi
 
 USER=$(logname)
 
-echo "Welcome in this automated Snips My Flower satellite installer!"
+echo ""
+echo -e "\e[33mWelcome in this automated Snips My Flower satellite installer!\e[0m"
 echo ""
 
-echo "Please enter the name of this plant/flower"
+echo -e "\e[33mPlease enter the name of this plant/flower\e[0m"
 read -p 'Plant/flower name: ' plant
-
 plant=${plant// /_}
 
-echo "Please enter the ip adress or the hostname of your main snips unit"
+echo ""
+echo -e "\e[33mPlease enter the ip adress or the hostname of your main snips unit\e[0m"
 read -p 'IP or hostname: ' ip
 
 apt-get update
@@ -36,11 +37,16 @@ apt-get install -y snips-audio-server
 git clone https://github.com/respeaker/seeed-voicecard.git
 cd seeed-voicecard
 ./install.sh
-echo "^^^^ No, don't reboot it, that's seeed respeaker installer telling you too, I will take care of that in a while ^^^^"
+echo -e "\e[33m^^^^ No, don't reboot it, that's seeed respeaker installer telling you too, I will take care of that in a while ^^^^\e[0m"
 cd ..
 
-rm /etc/voicecard/asound_2mic.conf
+rm /usr/bin/seeed-voicecard
+echo '#!/bin/bash
+exit' | tee --append '/usr/bin/seeed-voicecard'
 
+rm /var/lib/alsa/asound.state
+ln -s /etc/voicecard/wm8960_asound.state /var/lib/alsa/asound.state
+rm /etc/asound.conf
 echo 'pcm.!default {
   type asym
    playback.pcm {
@@ -51,10 +57,12 @@ echo 'pcm.!default {
      type plug
      slave.pcm "hw:seeed2micvoicec"
    }
-}' | tee --append '/etc/voicecard/asound_2mic.conf'
+}' | tee --append '/etc/asound.conf'
+
+alsactl restore
 
 sed -i -e 's/\# mqtt = "localhost:1883"/mqtt = "'${ip}':1883"/' /etc/snips.toml
-sed -i -e 's/\# bind = \["default@mqtt"\]/bind = \["'${plant}'@mqtt"\]/' /etc/snips.toml
+sed -i -e 's/\# bind = "default@mqtt"/bind = '${plant}'@mqtt"/' /etc/snips.toml
 
 systemctl is-active -q snipsMyFlower && systemctl stop snipsMyFlower
 
@@ -75,7 +83,11 @@ rm setup.sh
 mkdir logs
 
 grep -qF 'dtparam=i2c1_baudrate=30000' '/boot/config.txt' || echo 'dtparam=i2c1_baudrate=30000' | tee --append '/boot/config.txt'
-
+grep -qF 'dtparam i2c_arm=on' '/boot/config.txt' || echo 'dtparam i2c_arm=on' | tee --append '/boot/config.txt'
+grep -qF 'dtparam spi=on' '/boot/config.txt' || echo 'dtparam spi=on' | tee --append '/boot/config.txt'
+grep -qF 'dtoverlay=seeed-2mic-voicecard' '/boot/config.txt' || echo 'dtoverlay=seeed-2mic-voicecard' | tee --append '/boot/config.txt'
+grep -qF 'i2c-dev' '/etc/modules' || echo 'i2c-dev' | tee --append '/etc/modules'
+grep -qF 'snd-soc-seeed-voicecard' '/etc/modules' || echo 'snd-soc-seeed-voicecard' | tee --append '/etc/modules'
 pip3 install virtualenv
 
 if [ ! -d "$VENV" ]
@@ -93,10 +105,12 @@ fi
 . $VENV/bin/activate
 pip3 install -r sat_requirements.txt
 
+chown -R pi /home/pi/snipsMyFlower_${VERSION}
+
 systemctl daemon-reload
 systemctl enable snipsMyFlower
 systemctl restart snips-audio-server
 
-echo "Rebooting..."
+echo -e "\e[33mRebooting...\e[0m"
 sleep 3
 reboot
