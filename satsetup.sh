@@ -14,6 +14,46 @@ else
 fi
 
 USER=$(logname)
+
+echo "Please enter the name of this plant/flower"
+read -p 'Plant/flower name:' plant
+
+plant=${plant// /_}
+
+echo "Please enter the ip adress or the hostname of your main snips unit"
+read -p 'IP or hostname:' ip
+
+apt-get update
+apt-get dist-upgrade
+apt-get install -y git
+apt-get install -y dirmngr
+bash -c  'echo "deb https://raspbian.snips.ai/$(lsb_release -cs) stable main" > /etc/apt/sources.list.d/snips.list'
+apt-key adv --keyserver pgp.surfnet.nl --recv-keys D4F50CDCA10A2849
+apt-get update
+apt-get install -y snips-audio-server
+git clone https://github.com/respeaker/seeed-voicecard.git
+cd seeed-voicecard
+sudo ./install.sh
+cd ..
+
+rm /usr/bin/seeed-voicecard
+cat > /usr/bin/seeed-voicecard <<EOL
+pcm.!default {
+  type asym
+   playback.pcm {
+     type plug
+     slave.pcm "hw:seeed2micvoicec"
+   }
+   capture.pcm {
+     type plug
+     slave.pcm "hw:seeed2micvoicec"
+   }
+}
+EOL
+
+sed -i -e 's/\# mqtt = "localhost:1883"/mqtt = "'${ip}':1883"/' /etc/snips.toml
+sed -i -e 's/\# audio = ["+@mqtt"]/audio = ["'${plant}'@mqtt"]/' /etc/snips.toml
+
 systemctl is-active -q snipsMyFlower && systemctl stop snipsMyFlower
 
 if [ ! -f /etc/systemd/system/snipsMyFlower.service ]; then
@@ -53,4 +93,5 @@ pip3 install -r sat_requirements.txt
 
 systemctl daemon-reload
 systemctl enable snipsMyFlower
-systemctl start snipsMyFlower
+
+reboot
