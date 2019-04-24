@@ -87,7 +87,7 @@ class Flower:
                     temp_offset=-0.5)
 		self._leds = Leds()
 		self._leds.onStart()
-		self._watering = threading.Timer(interval=5.0, function=self._pump, args=[False])
+		self._watering = threading.Timer(interval=10.0, function=self._pump, args=[False])
 		self._monitoring = None
 		self._refilling = None
 		self._emptying = None

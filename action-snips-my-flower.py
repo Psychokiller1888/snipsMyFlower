@@ -115,7 +115,6 @@ class SnipsMyFlower:
 			payload = dict()
 
 		topic = message.topic
-		siteId = 'default'
 		sessionId = -1
 		if 'siteId' in payload:
 			siteId = payload['siteId']
@@ -142,7 +141,7 @@ class SnipsMyFlower:
 			item = self._TELEMETRY_TABLE_CORRESPONDANCE[slots['type']]
 			if 'when' not in slots:
 				# If the user did not provide a timeframe info, return him the actual data
-				self.endDialog(sessionId=sessionId, text='{} {}'.format(item[0], item[1]))
+				self.endDialog(sessionId=sessionId, text='{} {}'.format(data[0][item[0]], item[1]))
 			else:
 				# User asked for a time specific data
 				when = self._getSlotInfo('when', payload)
@@ -275,7 +274,6 @@ class SnipsMyFlower:
 		self._mqtt.disconnect()
 
 
-
 	def endDialog(self, sessionId, text=None):
 		"""
 		End a session by speaking the provided string if any
@@ -329,6 +327,8 @@ class SnipsMyFlower:
 		if ' ' in client:
 			client = client.replace(' ', '_')
 
+		client = 'default'
+
 		if intentFilter is None:
 			intentFilter = ''
 
@@ -356,6 +356,7 @@ class SnipsMyFlower:
 		:param text: string
 		:param client: string
 		"""
+		client = 'default'
 		self._mqtt.publish('hermes/dialogueManager/startSession', json.dumps({
 			'siteId'    : client,
 			'init'      : {
@@ -372,7 +373,7 @@ class SnipsMyFlower:
 		Send alert to the plant if needed
 		:param payload: dict
 		"""
-		if payload['plant'] not in self._plantsData:
+		if payload['plant'] not in self._plantsData.keys():
 			# Maybe he's using the scientific name?
 			name = ''
 			for plant in self._plantsData:
@@ -397,25 +398,25 @@ class SnipsMyFlower:
 				return
 
 			# Is the soil humid enough?
-			elif data['moisture'] < safeData['moisture_min'] * 0.9:
+			elif data['moisture'] < safeData.moistureMin * 0.9:
 				self._alertPlant(payload['siteId'], 'moisture', 'min')
 				self._plantStates[payload['siteId']] = State.THIRSTY
 				return
 
 			# But not too humid?
-			if data['moisture'] > safeData['moisture_max'] * 1.1:
+			if data['moisture'] > safeData.moistureMax * 1.1:
 				self._alertPlant(payload['siteId'], 'moisture', 'max')
 				self._plantStates[payload['siteId']] = State.DRAWNED
 				return
 
 			# How about the temperature, too cold?
-			elif data['temperature'] < safeData['temperature_min'] * 0.9:
+			elif data['temperature'] < safeData.temperatureMin * 0.9:
 				self._alertPlant(payload['siteId'], 'temperature', 'min')
 				self._plantStates[payload['siteId']] = State.COLD
 				return
 
 			# Or too hot?
-			elif data['temperature'] > safeData['temperature_max'] * 1.1:
+			elif data['temperature'] > safeData.temperatureMax * 1.1:
 				self._alertPlant(payload['siteId'], 'temperature', 'max')
 				self._plantStates[payload['siteId']] = State.HOT
 				return
@@ -431,12 +432,12 @@ class SnipsMyFlower:
 				total += row[3]
 			average = total / length
 
-			if average < safeData['luminosity_min'] * 0.9:
+			if average < safeData.luminosityMin * 0.9:
 				self._alertPlant(payload['siteId'], 'luminosity', 'min')
 				self._plantStates[payload['siteId']] = State.TOO_DARK
 				return
 
-			elif average > safeData['luminosity_max'] * 1.1:
+			elif average > safeData.luminosityMax * 1.1:
 				self._alertPlant(payload['siteId'], 'luminosity', 'max')
 				self._plantStates[payload['siteId']] = State.TOO_BRIGHT
 				return
@@ -592,7 +593,7 @@ class SnipsMyFlower:
 		return False
 
 
-	def _getTelemetryData(self, siteId: int, limit: int = -1) -> list:
+	def _getTelemetryData(self, siteId: str, limit: int = -1) -> list:
 		"""
 		Get telemetry data from database for the given site id
 		:param siteId: string
