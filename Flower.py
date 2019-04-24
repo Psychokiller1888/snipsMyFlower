@@ -76,7 +76,7 @@ class Flower:
 			self._logger.error("Couldnt' get my site id, please edit /etc/snips.toml and configure ['snips-audio-server']['bind']")
 			sys.exit()
 
-		self._me = {'type': 'cactus'}
+		self._me = {'type': str(self._siteId).replace('_', ' ')}
 		self._moistureSensor = Chirp(address=0x20,
                     read_moist=True,
                     read_temp=True,
@@ -136,20 +136,6 @@ class Flower:
 			elif '@' in self._snipsConf['snips-audio-server']['bind']:
 				return self._snipsConf['snips-audio-server']['bind'].split('@')[0]
 		return False
-
-
-	def _loadFlower(self):
-		"""
-		Loads the flower informations
-		:return: boolean
-		"""
-		if os.path.isfile('me.json'):
-			with open('me.json', 'w+') as f:
-				data = f.read()
-				self._me = json.loads(data)
-			return True
-		else:
-			return False
 
 
 	def onStop(self):

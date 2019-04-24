@@ -1,21 +1,23 @@
 {
 	"cactus": {
+		"scientific_name": "cactus",
 		"moisture_min": 8,
 		"moisture_max": 10,
 		"temperature_min": 20,
 		"temperature_max": 60,
-		"humidity_max": 50,
 		"humidity_min": 10,
+		"humidity_max": 50,
 		"luminosity_min": 25,
 		"luminosity_max": 100
 	},
-	"dragon_tree": {
+	"dragon tree": {
+		"scientific_name": "dracaena marginata",
 		"moisture_min": 20,
 		"moisture_max": 30,
 		"temperature_min": 10,
 		"temperature_max": 35,
-		"humidity_max": 55,
 		"humidity_min": 35,
+		"humidity_max": 55,
 		"luminosity_min": 40,
 		"luminosity_max": 70
 	}

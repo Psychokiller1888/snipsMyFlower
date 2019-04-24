@@ -10,6 +10,7 @@ import os
 import paho.mqtt.client as mqtt
 from pathlib import Path
 import pytoml
+from Plant import Plant
 from Slot import Slot
 import sys
 import time
@@ -99,7 +100,8 @@ class SnipsMyFlower:
 			print('Error initializing database')
 			sys.exit()
 
-		self._plantsData = self._loadPlantsData()
+		self._plantsData = dict()
+		self._loadPlantsData()
 		self._plantStates = dict()
 
 
@@ -371,69 +373,79 @@ class SnipsMyFlower:
 		:param payload: dict
 		"""
 		if payload['plant'] not in self._plantsData:
-			print('Now this is very weird, but this plant does not exist in our lexic')
-			return False
-		else:
-			try:
-				data = payload['data']
-				safeData = self._plantsData[payload['plant']]
+			# Maybe he's using the scientific name?
+			name = ''
+			for plant in self._plantsData:
+				if plant.scientificName == payload['plant']:
+					name = plant.scientificName
+					break
 
-				#Do we still have water?
-				if data['water'] <= 0:
-					self._alertPlant(payload['siteId'], 'water', 'min')
-					self._plantStates[payload['siteId']] = State.OUT_OF_WATER
-					return
+			if not name:
+				print('Now this is very weird, but this plant does not exist in our lexic')
+				return False
 
-				# Is the soil humid enough?
-				elif data['moisture'] < safeData['moisture_min'] * 0.9:
-					self._alertPlant(payload['siteId'], 'moisture', 'min')
-					self._plantStates[payload['siteId']] = State.THIRSTY
-					return
+			payload['plant'] = name
 
-				# But not too humid?
-				if data['moisture'] > safeData['moisture_max'] * 1.1:
-					self._alertPlant(payload['siteId'], 'moisture', 'max')
-					self._plantStates[payload['siteId']] = State.DRAWNED
-					return
+		try:
+			data = payload['data']
+			safeData = self._plantsData[payload['plant']]
 
-				# How about the temperature, too cold?
-				elif data['temperature'] < safeData['temperature_min'] * 0.9:
-					self._alertPlant(payload['siteId'], 'temperature', 'min')
-					self._plantStates[payload['siteId']] = State.COLD
-					return
+			#Do we still have water?
+			if data['water'] <= 0:
+				self._alertPlant(payload['siteId'], 'water', 'min')
+				self._plantStates[payload['siteId']] = State.OUT_OF_WATER
+				return
 
-				# Or too hot?
-				elif data['temperature'] > safeData['temperature_max'] * 1.1:
-					self._alertPlant(payload['siteId'], 'temperature', 'max')
-					self._plantStates[payload['siteId']] = State.HOT
-					return
+			# Is the soil humid enough?
+			elif data['moisture'] < safeData['moisture_min'] * 0.9:
+				self._alertPlant(payload['siteId'], 'moisture', 'min')
+				self._plantStates[payload['siteId']] = State.THIRSTY
+				return
 
-				# For the luminosity, we need to check upon an interval, as of course at night it will be too dark.
-				# Our telemetry reports data every 5 minutes, let's take the luminosity for the last day
-				limit = 12 * 24 # 12 reports per hour times 24
-				dbData = self._getTelemetryData(payload['siteId'], limit)
-				total = 0
-				length = 0
-				for row in dbData:
-					length += 1
-					total += row[3]
-				average = total / length
+			# But not too humid?
+			if data['moisture'] > safeData['moisture_max'] * 1.1:
+				self._alertPlant(payload['siteId'], 'moisture', 'max')
+				self._plantStates[payload['siteId']] = State.DRAWNED
+				return
 
-				if average < safeData['luminosity_min'] * 0.9:
-					self._alertPlant(payload['siteId'], 'luminosity', 'min')
-					self._plantStates[payload['siteId']] = State.TOO_DARK
-					return
+			# How about the temperature, too cold?
+			elif data['temperature'] < safeData['temperature_min'] * 0.9:
+				self._alertPlant(payload['siteId'], 'temperature', 'min')
+				self._plantStates[payload['siteId']] = State.COLD
+				return
 
-				elif average > safeData['luminosity_max'] * 1.1:
-					self._alertPlant(payload['siteId'], 'luminosity', 'max')
-					self._plantStates[payload['siteId']] = State.TOO_BRIGHT
-					return
+			# Or too hot?
+			elif data['temperature'] > safeData['temperature_max'] * 1.1:
+				self._alertPlant(payload['siteId'], 'temperature', 'max')
+				self._plantStates[payload['siteId']] = State.HOT
+				return
 
-				# Everything's clear!
-				self._plantStates[payload['siteId']] = State.OK
-				self._alertPlant(payload['siteId'], 'all', 'ok')
-			except Exception as e:
-				print(e)
+			# For the luminosity, we need to check upon an interval, as of course at night it will be too dark.
+			# Our telemetry reports data every 5 minutes, let's take the luminosity for the last day
+			limit = 12 * 24 # 12 reports per hour times 24
+			dbData = self._getTelemetryData(payload['siteId'], limit)
+			total = 0
+			length = 0
+			for row in dbData:
+				length += 1
+				total += row[3]
+			average = total / length
+
+			if average < safeData['luminosity_min'] * 0.9:
+				self._alertPlant(payload['siteId'], 'luminosity', 'min')
+				self._plantStates[payload['siteId']] = State.TOO_DARK
+				return
+
+			elif average > safeData['luminosity_max'] * 1.1:
+				self._alertPlant(payload['siteId'], 'luminosity', 'max')
+				self._plantStates[payload['siteId']] = State.TOO_BRIGHT
+				return
+
+			# Everything's clear!
+			self._plantStates[payload['siteId']] = State.OK
+			self._alertPlant(payload['siteId'], 'all', 'ok')
+		except Exception as e:
+			print(e)
 
 
 	def _alertPlant(self, siteId, telemetry, limit):
@@ -662,15 +674,19 @@ class SnipsMyFlower:
 			print(e)
 
 
-	@staticmethod
-	def _loadPlantsData():
+	def _loadPlantsData(self):
 		"""
 		Load the flower data file. This file holds the values for each supported flowers
-		:return: json dict
 		"""
+		data = None
 		with open('plantsData.json', 'r') as f:
 			data = f.read()
-			return json.loads(data)
+			data = json.loads(data)
+
+		if data is not None:
+			for name, data in data.items():
+				self._plantsData[name] = Plant(name, data)
+
 
 
 if __name__ == "__main__":
