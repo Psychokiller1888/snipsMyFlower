@@ -35,13 +35,13 @@ apt-get update
 apt-get install -y snips-audio-server
 git clone https://github.com/respeaker/seeed-voicecard.git
 cd seeed-voicecard
-#./install.sh
+./install.sh
 echo "^^^^ No, don't reboot it, that's seeed respeaker installer telling you too, I will take care of that in a while ^^^^"
 cd ..
 
-rm /usr/bin/seeed-voicecard
-cat > /usr/bin/seeed-voicecard <<EOL
-pcm.!default {
+rm /etc/voicecard/asound_2mic.conf
+
+echo 'pcm.!default {
   type asym
    playback.pcm {
      type plug
@@ -51,8 +51,7 @@ pcm.!default {
      type plug
      slave.pcm "hw:seeed2micvoicec"
    }
-}
-EOL
+}' | tee --append '/etc/voicecard/asound_2mic.conf'
 
 sed -i -e 's/\# mqtt = "localhost:1883"/mqtt = "'${ip}':1883"/' /etc/snips.toml
 sed -i -e 's/\# bind = \["default@mqtt"\]/bind = \["'${plant}'@mqtt"\]/' /etc/snips.toml
