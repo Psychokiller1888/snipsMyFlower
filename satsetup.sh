@@ -16,7 +16,7 @@ fi
 USER=$(logname)
 
 echo ""
-echo -e "\e[33mWelcome in this automated Snips My Flower satellite installer!\e[0m"
+echo -e "\e[33mWelcome to this automated Snips My Flower satellite installer!\e[0m"
 echo ""
 
 echo -e "\e[33mPlease enter the name of this plant/flower\e[0m"
@@ -30,6 +30,7 @@ read -p 'IP or hostname: ' ip
 apt-get update
 apt-get install -y git
 apt-get install -y dirmngr
+apt-get install -y python3-pip
 bash -c  'echo "deb https://raspbian.snips.ai/$(lsb_release -cs) stable main" > /etc/apt/sources.list.d/snips.list'
 apt-key adv --keyserver gpg.mozilla.org --recv-keys D4F50CDCA10A2849
 apt-get update
@@ -76,7 +77,7 @@ echo 'pcm.!default {
 }' | tee --append '/etc/voicecard/asound_2mic.conf'
 
 sed -i -e 's/\# mqtt = "localhost:1883"/mqtt = "'${ip}':1883"/' /etc/snips.toml
-sed -i -e 's/\# bind = "default@mqtt"/bind = '${plant}'@mqtt"/' /etc/snips.toml
+sed -i -e 's/\# bind = "default@mqtt"/bind = "'${plant}'@mqtt"/' /etc/snips.toml
 
 systemctl is-active -q snipsMyFlower && systemctl stop snipsMyFlower
 
