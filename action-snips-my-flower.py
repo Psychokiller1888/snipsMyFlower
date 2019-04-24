@@ -115,6 +115,7 @@ class SnipsMyFlower:
 			payload = dict()
 
 		topic = message.topic
+		siteId = 'default'
 		sessionId = -1
 		if 'siteId' in payload:
 			siteId = payload['siteId']
